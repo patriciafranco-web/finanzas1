@@ -25,14 +25,14 @@
         <div>
             <h3 class="fw-bold mb-4 text-white"><i class="fa-solid fa-hospital-user me-2"></i>ClínicaFin</h3>
             <ul class="nav flex-column">
+                <li class="nav-item"><a href="{{ url_for('main.pyg') }}" class="nav-link {% if request.endpoint == 'main.pyg' %}active{% endif %}"><i class="fa-solid fa-chart-pie me-2"></i> Panel</a></li>
                 <li class="nav-item"><a href="{{ url_for('main.dashboard') }}" class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}"><i class="fa-solid fa-wallet me-2"></i> Finanzas</a></li>
+                <li class="nav-item"><a href="{{ url_for('main.ventas_vista') }}" class="nav-link {% if request.endpoint == 'main.ventas_vista' %}active{% endif %}"><i class="fa-solid fa-cash-register me-2"></i> Ventas</a></li>
                 <li class="nav-item"><a href="{{ url_for('main.cadastros') }}" class="nav-link {% if request.endpoint == 'main.cadastros' %}active{% endif %}"><i class="fa-solid fa-folder-open me-2"></i> Cadastros</a></li>
                 <li class="nav-item"><a href="{{ url_for('main.cxc_vista') }}" class="nav-link {% if request.endpoint == 'main.cxc_vista' %}active{% endif %}"><i class="fa-solid fa-hand-holding-dollar me-2"></i> Cuentas por Cobrar</a></li>
                 <li class="nav-item"><a href="{{ url_for('main.cxp_vista') }}" class="nav-link {% if request.endpoint == 'main.cxp_vista' %}active{% endif %}"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Cuentas a Pagar</a></li>
                 <li class="nav-item"><a href="{{ url_for('main.honorarios') }}" class="nav-link {% if request.endpoint == 'main.honorarios' %}active{% endif %}"><i class="fa-solid fa-user-doctor me-2"></i> Honorarios Médicos</a></li>
-                <li class="nav-item"><a href="{{ url_for('main.pyg') }}" class="nav-link {% if request.endpoint == 'main.pyg' %}active{% endif %}"><i class="fa-solid fa-chart-pie me-2"></i> Estado de Resultados</a></li>
                 <li class="nav-item"><a href="{{ url_for('main.flujo_proyectado') }}" class="nav-link {% if request.endpoint == 'main.flujo_proyectado' %}active{% endif %}"><i class="fa-solid fa-chart-line me-2"></i> Flujo Proyectado</a></li>
-                <li class="nav-item"><a href="{{ url_for('main.conciliacion') }}" class="nav-link {% if request.endpoint == 'main.conciliacion' %}active{% endif %}"><i class="fa-solid fa-scale-balanced me-2"></i> Conciliación</a></li>
             </ul>
         </div>
         <div class="border-top pt-3 text-center">
