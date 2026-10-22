@@ -599,3 +599,25 @@ def agregar_centro_costo():
     db.session.add(CentroCosto(nombre=nombre))
     db.session.commit()
     return redirect(url_for('main.cadastros'))
+
+@bp.route('/exportar-excel')
+@login_required
+def exportar_excel():
+    transacciones = Transaccion.query.order_by(Transaccion.fecha.desc()).all()
+    si = StringIO()
+    cw = csv.writer(si, delimiter=';')
+    cw.writerow(['Fecha', 'Descripción', 'Paciente/Cliente', 'Tipo', 'Categoría', 'Cuenta', 'Centro de Costo', 'Método de Pago', 'Monto'])
+    for t in transacciones:
+        cw.writerow([
+            t.fecha.strftime('%d/%m/%Y') if t.fecha else '',
+            t.descripcion,
+            t.cliente.nombre if t.cliente else 'Particular',
+            t.tipo,
+            t.categoria.nombre if t.categoria else '',
+            t.cuenta.nombre if t.cuenta else '',
+            t.centro_costo.nombre if t.centro_costo else '',
+            t.metodo_pago,
+            t.monto
+        ])
+    output = si.getvalue().encode('utf-8-sig')
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=transacciones.csv"})
