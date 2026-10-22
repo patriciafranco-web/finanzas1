@@ -24,9 +24,8 @@ def create_app():
     app.register_blueprint(bp)
 
     with app.app_context():
-        # Si prefieres recrear la base de datos limpia con las nuevas columnas, puedes descomentar la línea de abajo por única vez:
-        # db.drop_all()
-        
+        # Recrea la base de datos limpia para incluir las tablas de Ventas y columnas nuevas
+        db.drop_all()
         db.create_all()
         
         # Crear usuario administrador por defecto si no existe
