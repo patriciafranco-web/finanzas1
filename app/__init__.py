@@ -14,7 +14,7 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
-    from app.models import User, Categoria
+    from app.models import User, Categoria, Servicio, Cuenta
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -24,6 +24,9 @@ def create_app():
     app.register_blueprint(bp)
 
     with app.app_context():
+        # Si prefieres recrear la base de datos limpia con las nuevas columnas, puedes descomentar la línea de abajo por única vez:
+        # db.drop_all()
+        
         db.create_all()
         
         # Crear usuario administrador por defecto si no existe
@@ -38,6 +41,10 @@ def create_app():
             db.session.add(Categoria(nombre='Venta de Paquetes', tipo='Ingreso'))
             db.session.add(Categoria(nombre='Insumos y Farmacia', tipo='Salida'))
             db.session.add(Categoria(nombre='Honorarios Médicos', tipo='Salida'))
+
+        # Crear un servicio de prueba si no existe
+        if not Servicio.query.first():
+            db.session.add(Servicio(codigo='SRV01', nombre='Consulta General', descripcion='Consulta médica general', moneda='PYG', precio=150000, activo=True))
             
         db.session.commit()
 
