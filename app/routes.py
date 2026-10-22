@@ -1,13 +1,36 @@
-from flask import Blueprint, render_template, request, redirect, url_for, Response
+from flask import Blueprint, render_template, request, redirect, url_for, Response, flash
+from flask_login import login_user, logout_user, login_required, current_user
 from app import db
-from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio
+from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio, User
 from datetime import datetime, time
 import csv
 from io import StringIO
 
 bp = Blueprint('main', __name__)
 
+@bp.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for('main.dashboard'))
+        else:
+            flash('Usuario o contraseña incorrectos', 'danger')
+            
+    return render_template('login.html')
+
+@bp.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('main.login'))
+
 @bp.route('/')
+@login_required
 def dashboard():
     q = request.args.get('q', '')
     cuenta_id = request.args.get('cuenta_id', type=int)
@@ -85,6 +108,7 @@ def dashboard():
                            selected_hasta=fecha_hasta_str)
 
 @bp.route('/cadastros')
+@login_required
 def cadastros():
     cuentas = Cuenta.query.all()
     clientes = Cliente.query.all()
@@ -104,7 +128,23 @@ def cadastros():
                            categorias=categorias,
                            centros_costo=centros_costo)
 
+@bp.route('/cuentas-por-cobrar')
+@login_required
+def cxc_vista():
+    cxc_list = CuentaPorCobrar.query.all()
+    clientes = Cliente.query.all()
+    cuentas = Cuenta.query.all()
+    return render_template('cxc.html', cxc_list=cxc_list, clientes=clientes, cuentas=cuentas)
+
+@bp.route('/cuentas-a-pagar')
+@login_required
+def cxp_vista():
+    cxp_list = CuentaPorPagar.query.all()
+    cuentas = Cuenta.query.all()
+    return render_template('cxp.html', cxp_list=cxp_list, cuentas=cuentas)
+
 @bp.route('/honorarios')
+@login_required
 def honorarios():
     medicos = Medico.query.all()
     servicios = Servicio.query.all()
@@ -113,6 +153,7 @@ def honorarios():
     return render_template('honorarios.html', medicos=medicos, servicios=servicios, clientes=clientes, prestaciones=prestaciones)
 
 @bp.route('/agregar-prestacion', methods=['POST'])
+@login_required
 def agregar_prestacion():
     medico_id = int(request.form.get('medico_id')) if request.form.get('medico_id') else None
     servicio_id = int(request.form.get('servicio_id')) if request.form.get('servicio_id') else None
@@ -150,6 +191,7 @@ def agregar_prestacion():
     return redirect(url_for('main.honorarios'))
 
 @bp.route('/eliminar-prestacion/<int:id>', methods=['POST'])
+@login_required
 def eliminar_prestacion(id):
     p = PrestacionServicio.query.get_or_404(id)
     db.session.delete(p)
@@ -158,6 +200,7 @@ def eliminar_prestacion(id):
 
 @bp.route('/estado-resultados')
 @bp.route('/pyg')
+@login_required
 def pyg():
     transacciones = Transaccion.query.all()
     total_ingresos = sum(t.monto for t in transacciones if t.tipo == 'Ingreso')
@@ -166,6 +209,7 @@ def pyg():
     return render_template('pyg.html', transacciones=transacciones, total_ingresos=total_ingresos, total_salidas=total_salidas, utilidad_neta=utilidad_neta)
 
 @bp.route('/flujo-proyectado')
+@login_required
 def flujo_proyectado():
     cxc_pendientes = CuentaPorCobrar.query.filter_by(estado='Pendiente').all()
     cxp_pendientes = CuentaPorPagar.query.filter_by(estado='Pendiente').all()
@@ -174,6 +218,7 @@ def flujo_proyectado():
     return render_template('flujo_proyectado.html', cxc_pendientes=cxc_pendientes, cxp_pendientes=cxp_pendientes, total_cxc=total_cxc, total_cxp=total_cxp)
 
 @bp.route('/agregar-transaccion', methods=['POST'])
+@login_required
 def agregar_transaccion():
     cat_id = request.form.get('categoria_id')
     cta_id = request.form.get('cuenta_id')
@@ -281,6 +326,7 @@ def agregar_transaccion():
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/editar-transaccion/<int:id>', methods=['POST'])
+@login_required
 def editar_transaccion(id):
     t = Transaccion.query.get_or_404(id)
     t.tipo = request.form.get('tipo')
@@ -299,6 +345,7 @@ def editar_transaccion(id):
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/eliminar-transaccion/<int:id>', methods=['POST'])
+@login_required
 def eliminar_transaccion(id):
     t = Transaccion.query.get_or_404(id)
     db.session.delete(t)
@@ -306,6 +353,7 @@ def eliminar_transaccion(id):
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/agregar-cuenta', methods=['POST'])
+@login_required
 def agregar_cuenta():
     nombre = request.form.get('nombre')
     tipo_cuenta = request.form.get('tipo_cuenta')
@@ -317,6 +365,7 @@ def agregar_cuenta():
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-cuenta/<int:id>', methods=['POST'])
+@login_required
 def eliminar_cuenta(id):
     c = Cuenta.query.get_or_404(id)
     db.session.delete(c)
@@ -324,6 +373,7 @@ def eliminar_cuenta(id):
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-cliente', methods=['POST'])
+@login_required
 def agregar_cliente():
     nombre = request.form.get('nombre')
     documento = request.form.get('documento')
@@ -334,6 +384,7 @@ def agregar_cliente():
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-cliente/<int:id>', methods=['POST'])
+@login_required
 def eliminar_cliente(id):
     cl = Cliente.query.get_or_404(id)
     db.session.delete(cl)
@@ -341,6 +392,7 @@ def eliminar_cliente(id):
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-medico', methods=['POST'])
+@login_required
 def agregar_medico():
     nombre = request.form.get('nombre')
     especialidad = request.form.get('especialidad')
@@ -351,6 +403,7 @@ def agregar_medico():
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-medico/<int:id>', methods=['POST'])
+@login_required
 def eliminar_medico(id):
     m = Medico.query.get_or_404(id)
     db.session.delete(m)
@@ -358,6 +411,7 @@ def eliminar_medico(id):
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-servicio', methods=['POST'])
+@login_required
 def agregar_servicio():
     nombre = request.form.get('nombre')
     moneda = request.form.get('moneda')
@@ -367,6 +421,7 @@ def agregar_servicio():
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-servicio/<int:id>', methods=['POST'])
+@login_required
 def eliminar_servicio(id):
     s = Servicio.query.get_or_404(id)
     db.session.delete(s)
@@ -374,6 +429,7 @@ def eliminar_servicio(id):
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-cxc', methods=['POST'])
+@login_required
 def agregar_cxc():
     cliente_id = int(request.form.get('cliente_id')) if request.form.get('cliente_id') else None
     servicio_id = int(request.form.get('servicio_id')) if request.form.get('servicio_id') else None
@@ -395,16 +451,18 @@ def agregar_cxc():
         estado='Pendiente'
     ))
     db.session.commit()
-    return redirect(url_for('main.cadastros'))
+    return redirect(url_for('main.cxc_vista'))
 
 @bp.route('/eliminar-cxc/<int:id>', methods=['POST'])
+@login_required
 def eliminar_cxc(id):
     x = CuentaPorCobrar.query.get_or_404(id)
     db.session.delete(x)
     db.session.commit()
-    return redirect(url_for('main.cadastros'))
+    return redirect(url_for('main.cxc_vista'))
 
 @bp.route('/cobrar-cxc/<int:id>', methods=['POST'])
+@login_required
 def cobrar_cxc(id):
     x = CuentaPorCobrar.query.get_or_404(id)
     cuenta_id = int(request.form.get('cuenta_id'))
@@ -469,9 +527,10 @@ def cobrar_cxc(id):
         ))
 
     db.session.commit()
-    return redirect(url_for('main.cadastros'))
+    return redirect(url_for('main.cxc_vista'))
 
 @bp.route('/agregar-cxp', methods=['POST'])
+@login_required
 def agregar_cxp():
     proveedor = request.form.get('proveedor')
     concepto = request.form.get('concepto')
@@ -491,16 +550,18 @@ def agregar_cxp():
         estado='Pendiente'
     ))
     db.session.commit()
-    return redirect(url_for('main.cadastros'))
+    return redirect(url_for('main.cxp_vista'))
 
 @bp.route('/eliminar-cxp/<int:id>', methods=['POST'])
+@login_required
 def eliminar_cxp(id):
     p = CuentaPorPagar.query.get_or_404(id)
     db.session.delete(p)
     db.session.commit()
-    return redirect(url_for('main.cadastros'))
+    return redirect(url_for('main.cxp_vista'))
 
 @bp.route('/pagar-cxp/<int:id>', methods=['POST'])
+@login_required
 def pagar_cxp(id):
     p = CuentaPorPagar.query.get_or_404(id)
     cuenta_id = int(request.form.get('cuenta_id'))
@@ -517,9 +578,10 @@ def pagar_cxp(id):
         observacion="Pago de cuenta a pagar"
     ))
     db.session.commit()
-    return redirect(url_for('main.cadastros'))
+    return redirect(url_for('main.cxp_vista'))
 
 @bp.route('/agregar-categoria', methods=['POST'])
+@login_required
 def agregar_categoria():
     nombre = request.form.get('nombre')
     tipo = request.form.get('tipo')
@@ -528,6 +590,7 @@ def agregar_categoria():
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-centro-costo', methods=['POST'])
+@login_required
 def agregar_centro_costo():
     nombre = request.form.get('nombre')
     db.session.add(CentroCosto(nombre=nombre))
@@ -535,6 +598,7 @@ def agregar_centro_costo():
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/exportar-excel')
+@login_required
 def exportar_excel():
     q = request.args.get('q', '')
     cuenta_id = request.args.get('cuenta_id', type=int)
@@ -588,6 +652,7 @@ def exportar_excel():
     )
 
 @bp.route('/conciliacion')
+@login_required
 def conciliacion():
     cuentas = Cuenta.query.all()
     transacciones = Transaccion.query.filter_by(conciliado=False).all()
@@ -604,6 +669,7 @@ def conciliacion():
     return render_template('conciliacion.html', cuentas=cuentas, transacciones=transacciones, saldos=saldos)
 
 @bp.route('/auto-conciliar', methods=['POST', 'GET'])
+@login_required
 def auto_conciliar():
     transacciones = Transaccion.query.filter_by(conciliado=False).all()
     for t in transacciones:
