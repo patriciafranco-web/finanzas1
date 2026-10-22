@@ -14,7 +14,8 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
-    from app.models import User, Categoria, Servicio, Cuenta
+    # Importar TODOS los modelos para que SQLAlchemy los reconozca y cree sus tablas
+    from app.models import User, Cuenta, Cliente, Medico, Servicio, Categoria, CentroCosto, Transaccion, CuentaPorCobrar, CuentaPorPagar, PrestacionServicio, Venta, DetalleVenta
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -24,7 +25,7 @@ def create_app():
     app.register_blueprint(bp)
 
     with app.app_context():
-        # Recrea la base de datos limpia para incluir las tablas de Ventas y columnas nuevas
+        # Recrea la base de datos limpia con todas las tablas nuevas
         db.drop_all()
         db.create_all()
         
