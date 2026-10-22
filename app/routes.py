@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, Response, flash
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
-from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio, User
+from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio, User, Venta, DetalleVenta
 from datetime import datetime, time
 import csv
 from io import StringIO
@@ -17,7 +17,7 @@ def login():
         
         if user and user.check_password(password):
             login_user(user)
-            return redirect(url_for('main.dashboard'))
+            return redirect(url_for('main.pyg'))
         else:
             flash('Usuario o contraseña incorrectos', 'danger')
             
@@ -30,6 +30,15 @@ def logout():
     return redirect(url_for('main.login'))
 
 @bp.route('/')
+@login_required
+def pyg():
+    transacciones = Transaccion.query.all()
+    total_ingresos = sum(t.monto for t in transacciones if t.tipo == 'Ingreso')
+    total_salidas = sum(t.monto for t in transacciones if t.tipo == 'Salida')
+    utilidad_neta = total_ingresos - total_salidas
+    return render_template('pyg.html', transacciones=transacciones, total_ingresos=total_ingresos, total_salidas=total_salidas, utilidad_neta=utilidad_neta)
+
+@bp.route('/finanzas')
 @login_required
 def dashboard():
     q = request.args.get('q', '')
@@ -107,6 +116,110 @@ def dashboard():
                            selected_desde=fecha_desde_str,
                            selected_hasta=fecha_hasta_str)
 
+@bp.route('/ventas')
+@login_required
+def ventas_vista():
+    ventas = Venta.query.order_by(Venta.fecha.desc()).all()
+    clientes = Cliente.query.all()
+    servicios = Servicio.query.all()
+    cuentas = Cuenta.query.all()
+    return render_template('ventas.html', ventas=ventas, clientes=clientes, servicios=servicios, cuentas=cuentas)
+
+@bp.route('/agregar-venta', methods=['POST'])
+@login_required
+def agregar_venta():
+    cliente_id = int(request.form.get('cliente_id')) if request.form.get('cliente_id') else None
+    servicio_id = int(request.form.get('servicio_id')) if request.form.get('servicio_id') else None
+    monto_pagado = float(request.form.get('monto_pagado') or 0)
+    cuenta_id = int(request.form.get('cuenta_id')) if request.form.get('cuenta_id') else None
+    
+    if servicio_id:
+        servicio = Servicio.query.get(servicio_id)
+        if servicio:
+            total = servicio.precio
+            if not cliente_id and monto_pagado < total:
+                flash('Seleccioná un cliente para registrar el saldo pendiente', 'danger')
+                return redirect(url_for('main.ventas_vista'))
+            
+            saldo = total - monto_pagado
+            estado = 'Pagada' if saldo <= 0 else ('Parcial' if monto_pagado > 0 else 'Pendiente')
+            
+            venta = Venta(
+                fecha=datetime.utcnow(),
+                cliente_id=cliente_id if cliente_id else Cliente.query.first().id,
+                total=total,
+                pagado=monto_pagado,
+                saldo=saldo,
+                estado=estado
+            )
+            db.session.add(venta)
+            db.session.flush()
+            
+            db.session.add(DetalleVenta(
+                venta_id=venta.id,
+                servicio_id=servicio_id,
+                cantidad=1,
+                precio_unitario=total,
+                subtotal=total
+            ))
+            
+            if monto_pagado > 0 and cuenta_id:
+                db.session.add(Transaccion(
+                    descripcion=f"Pago Venta #{venta.id}: {servicio.nombre}",
+                    tipo='Ingreso',
+                    monto=monto_pagado,
+                    cuenta_id=cuenta_id,
+                    cliente_id=cliente_id,
+                    metodo_pago='Efectivo',
+                    conciliado=False,
+                    fecha=datetime.utcnow()
+                ))
+                
+            if saldo > 0 and cliente_id:
+                db.session.add(CuentaPorCobrar(
+                    cliente_id=cliente_id,
+                    concepto=f"Saldo Venta #{venta.id}: {servicio.nombre}",
+                    moneda=servicio.moneda,
+                    monto=saldo,
+                    fecha_emision=datetime.utcnow(),
+                    fecha_vencimiento=datetime.utcnow(),
+                    estado='Pendiente'
+                ))
+                
+            db.session.commit()
+            
+    return redirect(url_for('main.ventas_vista'))
+
+@bp.route('/transferencia', methods=['POST'])
+@login_required
+def transferencia():
+    cuenta_origen_id = int(request.form.get('cuenta_origen_id'))
+    cuenta_destino_id = int(request.form.get('cuenta_destino_id'))
+    monto = float(request.form.get('monto') or 0)
+    
+    if cuenta_origen_id != cuenta_destino_id and monto > 0:
+        orig = Cuenta.query.get(cuenta_origen_id)
+        dest = Cuenta.query.get(cuenta_destino_id)
+        if orig and dest:
+            db.session.add(Transaccion(
+                descripcion=f"Transferencia saliente a {dest.nombre}",
+                tipo='Salida',
+                monto=monto,
+                cuenta_id=cuenta_origen_id,
+                metodo_pago='Transferencia',
+                fecha=datetime.utcnow()
+            ))
+            db.session.add(Transaccion(
+                descripcion=f"Transferencia entrante de {orig.nombre}",
+                tipo='Ingreso',
+                monto=monto,
+                cuenta_id=cuenta_destino_id,
+                metodo_pago='Transferencia',
+                fecha=datetime.utcnow()
+            ))
+            db.session.commit()
+    return redirect(url_for('main.dashboard'))
+
 @bp.route('/cadastros')
 @login_required
 def cadastros():
@@ -141,7 +254,8 @@ def cxc_vista():
 def cxp_vista():
     cxp_list = CuentaPorPagar.query.all()
     cuentas = Cuenta.query.all()
-    return render_template('cxp.html', cxp_list=cxp_list, cuentas=cuentas)
+    categorias = Categoria.query.filter_by(tipo='Salida').all()
+    return render_template('cxp.html', cxp_list=cxp_list, cuentas=cuentas, categorias=categorias)
 
 @bp.route('/honorarios')
 @login_required
@@ -185,7 +299,6 @@ def agregar_prestacion():
                 fecha_vencimiento=datetime.utcnow(),
                 estado='Pendiente'
             ))
-            
             db.session.commit()
             
     return redirect(url_for('main.honorarios'))
@@ -197,16 +310,6 @@ def eliminar_prestacion(id):
     db.session.delete(p)
     db.session.commit()
     return redirect(url_for('main.honorarios'))
-
-@bp.route('/estado-resultados')
-@bp.route('/pyg')
-@login_required
-def pyg():
-    transacciones = Transaccion.query.all()
-    total_ingresos = sum(t.monto for t in transacciones if t.tipo == 'Ingreso')
-    total_salidas = sum(t.monto for t in transacciones if t.tipo == 'Salida')
-    utilidad_neta = total_ingresos - total_salidas
-    return render_template('pyg.html', transacciones=transacciones, total_ingresos=total_ingresos, total_salidas=total_salidas, utilidad_neta=utilidad_neta)
 
 @bp.route('/flujo-proyectado')
 @login_required
@@ -233,96 +336,22 @@ def agregar_transaccion():
     fecha_transaccion = datetime.strptime(request.form.get('fecha'), '%Y-%m-%d') if request.form.get('fecha') else datetime.utcnow()
     observacion = request.form.get('observacion', '')
 
-    cuenta = Cuenta.query.get(cta_id) if cta_id else None
-    usar_divisa = request.form.get('usar_divisa')
-
-    if usar_divisa and cuenta:
-        monto_divisa = float(request.form.get('monto_divisa') or 0)
-        cotizacion = float(request.form.get('cotizacion') or 1)
-        
-        if cuenta.moneda == 'PYG':
-            total_recibido_gs = monto_divisa * cotizacion
-            if monto_ingresado > 0:
-                db.session.add(Transaccion(
-                    descripcion=descripcion,
-                    tipo=tipo,
-                    monto=monto_ingresado,
-                    categoria_id=int(cat_id) if cat_id else None,
-                    cuenta_id=int(cta_id) if cta_id else None,
-                    centro_costo_id=int(cc_id) if cc_id else None,
-                    servicio_id=int(srv_id) if srv_id else None,
-                    cliente_id=cliente_id,
-                    metodo_pago=metodo_pago,
-                    conciliado=False,
-                    fecha=fecha_transaccion,
-                    observacion=f"Pagado en divisa ({monto_divisa} USD) con cotiz: {cotizacion}. {observacion}"
-                ))
-            
-            diferencia = total_recibido_gs - monto_ingresado
-            if diferencia > 100:
-                db.session.add(Transaccion(
-                    descripcion=f"Ganancia por Cambio: {descripcion}",
-                    tipo='Ingreso',
-                    monto=diferencia,
-                    categoria_id=int(cat_id) if cat_id else None,
-                    cuenta_id=int(cta_id) if cta_id else None,
-                    centro_costo_id=int(cc_id) if cc_id else None,
-                    cliente_id=cliente_id,
-                    metodo_pago='Ajuste de Cambio',
-                    conciliado=False,
-                    fecha=fecha_transaccion,
-                    observacion="Sobrante generado por diferencia en la cotización del día"
-                ))
-        elif cuenta.moneda == 'USD':
-            if monto_ingresado > 0:
-                db.session.add(Transaccion(
-                    descripcion=descripcion,
-                    tipo=tipo,
-                    monto=monto_ingresado,
-                    categoria_id=int(cat_id) if cat_id else None,
-                    cuenta_id=int(cta_id) if cta_id else None,
-                    centro_costo_id=int(cc_id) if cc_id else None,
-                    servicio_id=int(srv_id) if srv_id else None,
-                    cliente_id=cliente_id,
-                    metodo_pago=metodo_pago,
-                    conciliado=False,
-                    fecha=fecha_transaccion,
-                    observacion=f"Pagado en USD (Cotización aplicada: {cotizacion}). {observacion}"
-                ))
-            
-            diferencia_usd = monto_divisa - monto_ingresado
-            if diferencia_usd > 0.01:
-                db.session.add(Transaccion(
-                    descripcion=f"Ganancia por Cambio: {descripcion}",
-                    tipo='Ingreso',
-                    monto=diferencia_usd,
-                    categoria_id=int(cat_id) if cat_id else None,
-                    cuenta_id=int(cta_id) if cta_id else None,
-                    centro_costo_id=int(cc_id) if cc_id else None,
-                    cliente_id=cliente_id,
-                    metodo_pago='Ajuste de Cambio',
-                    conciliado=False,
-                    fecha=fecha_transaccion,
-                    observacion="Sobrante en USD por diferencia de cotización"
-                ))
-    else:
-        if monto_ingresado > 0:
-            db.session.add(Transaccion(
-                descripcion=descripcion,
-                tipo=tipo,
-                monto=monto_ingresado,
-                categoria_id=int(cat_id) if cat_id else None,
-                cuenta_id=int(cta_id) if cta_id else None,
-                centro_costo_id=int(cc_id) if cc_id else None,
-                servicio_id=int(srv_id) if srv_id else None,
-                cliente_id=cliente_id,
-                metodo_pago=metodo_pago,
-                conciliado=False,
-                fecha=fecha_transaccion,
-                observacion=observacion
-            ))
-
-    db.session.commit()
+    if monto_ingresado > 0:
+        db.session.add(Transaccion(
+            descripcion=descripcion,
+            tipo=tipo,
+            monto=monto_ingresado,
+            categoria_id=int(cat_id) if cat_id else None,
+            cuenta_id=int(cta_id) if cta_id else None,
+            centro_costo_id=int(cc_id) if cc_id else None,
+            servicio_id=int(srv_id) if srv_id else None,
+            cliente_id=cliente_id,
+            metodo_pago=metodo_pago,
+            conciliado=False,
+            fecha=fecha_transaccion,
+            observacion=observacion
+        ))
+        db.session.commit()
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/editar-transaccion/<int:id>', methods=['POST'])
@@ -466,66 +495,19 @@ def eliminar_cxc(id):
 def cobrar_cxc(id):
     x = CuentaPorCobrar.query.get_or_404(id)
     cuenta_id = int(request.form.get('cuenta_id'))
-    cuenta = Cuenta.query.get(cuenta_id)
-    usar_divisa = request.form.get('usar_divisa')
-
     x.estado = 'Pagado'
     
-    if usar_divisa and cuenta:
-        monto_divisa = float(request.form.get('monto_divisa') or 0)
-        cotizacion = float(request.form.get('cotizacion') or 1)
-        total_recibido_gs = monto_divisa * cotizacion
-
-        if cuenta.moneda == 'PYG':
-            db.session.add(Transaccion(
-                descripcion=f"Cobro CxC: {x.concepto}",
-                tipo='Ingreso',
-                monto=x.monto,
-                cuenta_id=cuenta_id,
-                cliente_id=x.cliente_id,
-                metodo_pago=x.metodo_pago,
-                conciliado=False,
-                fecha=datetime.utcnow(),
-                observacion=f"Cobro CxC en divisa ({monto_divisa} USD) cotiz: {cotizacion}"
-            ))
-            diferencia = total_recibido_gs - x.monto
-            if diferencia > 100:
-                db.session.add(Transaccion(
-                    descripcion=f"Ganancia por Cambio: {x.concepto}",
-                    tipo='Ingreso',
-                    monto=diferencia,
-                    cuenta_id=cuenta_id,
-                    cliente_id=x.cliente_id,
-                    metodo_pago='Ajuste de Cambio',
-                    conciliado=False,
-                    fecha=datetime.utcnow(),
-                    observacion="Sobrante generado por diferencia en la cotización al cobrar CxC"
-                ))
-        else:
-            db.session.add(Transaccion(
-                descripcion=f"Cobro CxC: {x.concepto}",
-                tipo='Ingreso',
-                monto=x.monto,
-                cuenta_id=cuenta_id,
-                cliente_id=x.cliente_id,
-                metodo_pago=x.metodo_pago,
-                conciliado=False,
-                fecha=datetime.utcnow(),
-                observacion="Cobro CxC en USD"
-            ))
-    else:
-        db.session.add(Transaccion(
-            descripcion=f"Cobro CxC: {x.concepto}",
-            tipo='Ingreso',
-            monto=x.monto,
-            cuenta_id=cuenta_id,
-            cliente_id=x.cliente_id,
-            metodo_pago=x.metodo_pago,
-            conciliado=False,
-            fecha=datetime.utcnow(),
-            observacion="Cobro de cuenta por cobrar"
-        ))
-
+    db.session.add(Transaccion(
+        descripcion=f"Cobro CxC: {x.concepto}",
+        tipo='Ingreso',
+        monto=x.monto,
+        cuenta_id=cuenta_id,
+        cliente_id=x.cliente_id,
+        metodo_pago=x.metodo_pago,
+        conciliado=False,
+        fecha=datetime.utcnow(),
+        observacion="Cobro de cuenta por cobrar"
+    ))
     db.session.commit()
     return redirect(url_for('main.cxc_vista'))
 
@@ -537,6 +519,7 @@ def agregar_cxp():
     moneda = request.form.get('moneda')
     metodo_pago = request.form.get('metodo_pago', 'Efectivo')
     monto = float(request.form.get('monto') or 0)
+    categoria_id = int(request.form.get('categoria_id')) if request.form.get('categoria_id') else None
     fecha_vencimiento = datetime.strptime(request.form.get('fecha_vencimiento'), '%Y-%m-%d') if request.form.get('fecha_vencimiento') else datetime.utcnow()
     
     db.session.add(CuentaPorPagar(
@@ -545,6 +528,7 @@ def agregar_cxp():
         moneda=moneda,
         metodo_pago=metodo_pago,
         monto=monto,
+        categoria_id=categoria_id,
         fecha_factura=datetime.utcnow(),
         fecha_vencimiento=fecha_vencimiento,
         estado='Pendiente'
@@ -572,6 +556,7 @@ def pagar_cxp(id):
         tipo='Salida',
         monto=p.monto,
         cuenta_id=cuenta_id,
+        categoria_id=p.categoria_id,
         metodo_pago=p.metodo_pago,
         conciliado=False,
         fecha=datetime.utcnow(),
@@ -600,79 +585,21 @@ def agregar_centro_costo():
 @bp.route('/exportar-excel')
 @login_required
 def exportar_excel():
-    q = request.args.get('q', '')
-    cuenta_id = request.args.get('cuenta_id', type=int)
-    categoria_id = request.args.get('categoria_id', type=int)
-    centro_id = request.args.get('centro_costo_id', type=int)
-    fecha_desde_str = request.args.get('fecha_desde', '')
-    fecha_hasta_str = request.args.get('fecha_hasta', '')
-
-    query = Transaccion.query
-    if q:
-        query = query.filter(Transaccion.descripcion.ilike(f'%{q}%'))
-    if cuenta_id:
-        query = query.filter_by(cuenta_id=cuenta_id)
-    if categoria_id:
-        query = query.filter_by(categoria_id=categoria_id)
-    if centro_id:
-        query = query.filter_by(centro_costo_id=centro_id)
-    if fecha_desde_str:
-        dt_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
-        query = query.filter(Transaccion.fecha >= dt_desde)
-    if fecha_hasta_str:
-        dt_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d')
-        dt_hasta_fin = datetime.combine(dt_hasta.date(), time.max)
-        query = query.filter(Transaccion.fecha <= dt_hasta_fin)
-
-    transacciones = query.order_by(Transaccion.fecha.desc()).all()
-    
+    transacciones = Transaccion.query.order_by(Transaccion.fecha.desc()).all()
     si = StringIO()
     cw = csv.writer(si, delimiter=';')
-    cw.writerow(['Fecha', 'Descripción', 'Paciente/Cliente', 'Tipo', 'Categoría', 'Cuenta', 'Centro de Costo', 'Método de Pago', 'Monto', 'Conciliado'])
-    
+    cw.writerow(['Fecha', 'Descripción', 'Paciente/Cliente', 'Tipo', 'Categoría', 'Cuenta', 'Centro de Costo', 'Método de Pago', 'Monto'])
     for t in transacciones:
         cw.writerow([
             t.fecha.strftime('%d/%m/%Y') if t.fecha else '',
             t.descripcion,
-            t.cliente.nombre if t.cliente else 'Particular / General',
+            t.cliente.nombre if t.cliente else 'Particular',
             t.tipo,
             t.categoria.nombre if t.categoria else '',
             t.cuenta.nombre if t.cuenta else '',
             t.centro_costo.nombre if t.centro_costo else '',
             t.metodo_pago,
-            t.monto,
-            'Sí' if t.conciliado else 'No'
+            t.monto
         ])
-        
     output = si.getvalue().encode('utf-8-sig')
-    return Response(
-        output,
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment;filename=transacciones_filtradas.csv"}
-    )
-
-@bp.route('/conciliacion')
-@login_required
-def conciliacion():
-    cuentas = Cuenta.query.all()
-    transacciones = Transaccion.query.filter_by(conciliado=False).all()
-    saldos = {'PYG': 0.0, 'USD': 0.0, 'BRL': 0.0}
-    for c in cuentas:
-        saldo_cta = c.saldo_inicial
-        txs_cta = Transaccion.query.filter_by(cuenta_id=c.id).all()
-        for t in txs_cta:
-            if t.tipo == 'Ingreso':
-                saldo_cta += t.monto
-            else:
-                saldo_cta -= t.monto
-        saldos[c.moneda] += saldo_cta
-    return render_template('conciliacion.html', cuentas=cuentas, transacciones=transacciones, saldos=saldos)
-
-@bp.route('/auto-conciliar', methods=['POST', 'GET'])
-@login_required
-def auto_conciliar():
-    transacciones = Transaccion.query.filter_by(conciliado=False).all()
-    for t in transacciones:
-        t.conciliado = True
-    db.session.commit()
-    return redirect(url_for('main.conciliacion'))
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=transacciones.csv"})
