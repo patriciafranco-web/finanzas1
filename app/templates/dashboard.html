@@ -127,7 +127,7 @@
     </div>
 </div>
 
-<!-- MODAL NUEVA TRANSACCIÓN (Con Conversión Automática de Divisas en Vivo) -->
+<!-- MODAL NUEVA TRANSACCIÓN (Con Botones Estilo Referencia y Divisas) -->
 <div class="modal fade" id="modalTransaccion" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -137,13 +137,16 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- Selector Tipo Estilo Botones (Referencia de Nadia) -->
                     <div class="mb-3">
-                        <label class="form-label">Tipo</label>
-                        <select class="form-select" name="tipo" required>
-                            <option value="Ingreso">Ingreso</option>
-                            <option value="Salida">Salida</option>
-                        </select>
+                        <label class="form-label fw-bold">Tipo de Transacción</label>
+                        <input type="hidden" name="tipo" id="inputTipoTransaccion" value="Ingreso">
+                        <div class="btn-group w-150" role="group">
+                            <button type="button" class="btn btn-outline-success active" id="btnIngreso" onclick="setTipoTransaccion('Ingreso')"><i class="fa-solid fa-arrow-trend-up me-1"></i> Ingreso</button>
+                            <button type="button" class="btn btn-outline-danger" id="btnSalida" onclick="setTipoTransaccion('Salida')"><i class="fa-solid fa-arrow-trend-down me-1"></i> Salida</button>
+                        </div>
                     </div>
+
                     <div class="mb-3">
                         <label class="form-label">Descripción</label>
                         <input type="text" class="form-control" name="descripcion" required placeholder="Ej: Pago de servicios">
@@ -283,6 +286,19 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 });
+
+function setTipoTransaccion(tipo) {
+    document.getElementById('inputTipoTransaccion').value = tipo;
+    let btnIngreso = document.getElementById('btnIngreso');
+    let btnSalida = document.getElementById('btnSalida');
+    if (tipo === 'Ingreso') {
+        btnIngreso.className = 'btn btn-success active';
+        btnSalida.className = 'btn btn-outline-danger';
+    } else {
+        btnIngreso.className = 'btn btn-outline-success';
+        btnSalida.className = 'btn btn-danger active';
+    }
+}
 
 function toggleDivisaNueva(checkbox) {
     var campos = document.getElementById('camposDivisaNueva');
