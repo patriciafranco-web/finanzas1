@@ -121,73 +121,79 @@ def dashboard():
 def ventas_vista():
     ventas = Venta.query.order_by(Venta.fecha.desc()).all()
     clientes = Cliente.query.all()
-    servicios = Servicio.query.all()
+    servicios = Servicio.query.filter_by(activo=True).all()
     cuentas = Cuenta.query.all()
     return render_template('ventas.html', ventas=ventas, clientes=clientes, servicios=servicios, cuentas=cuentas)
 
-@bp.route('/agregar-venta', methods=['POST'])
+@bp.route('/agregar-venta-completa', methods=['POST'])
 @login_required
-def agregar_venta():
+def agregar_venta_completa():
     cliente_id = int(request.form.get('cliente_id')) if request.form.get('cliente_id') else None
     servicio_id = int(request.form.get('servicio_id')) if request.form.get('servicio_id') else None
+    cantidad = int(request.form.get('cantidad') or 1)
+    precio_unitario = float(request.form.get('precio_unitario') or 0)
+    descuento = float(request.form.get('descuento') or 0)
     monto_pagado = float(request.form.get('monto_pagado') or 0)
     cuenta_id = int(request.form.get('cuenta_id')) if request.form.get('cuenta_id') else None
+    metodo_pago = request.form.get('metodo_pago', 'Efectivo')
     
     if servicio_id:
-        servicio = Servicio.query.get(servicio_id)
-        if servicio:
-            total = servicio.precio
-            if not cliente_id and monto_pagado < total:
-                flash('Seleccioná un cliente para registrar el saldo pendiente', 'danger')
-                return redirect(url_for('main.ventas_vista'))
+        subtotal = cantidad * precio_unitario
+        total = max(0.0, subtotal - descuento)
+        
+        saldo = total - monto_pagado
+        if saldo > 0 and not cliente_id:
+            flash('Seleccioná un cliente para registrar el saldo pendiente', 'danger')
+            return redirect(url_for('main.ventas_vista'))
             
-            saldo = total - monto_pagado
-            estado = 'Pagada' if saldo <= 0 else ('Parcial' if monto_pagado > 0 else 'Pendiente')
-            
-            venta = Venta(
-                fecha=datetime.utcnow(),
-                cliente_id=cliente_id if cliente_id else Cliente.query.first().id,
-                total=total,
-                pagado=monto_pagado,
-                saldo=saldo,
-                estado=estado
-            )
-            db.session.add(venta)
-            db.session.flush()
-            
-            db.session.add(DetalleVenta(
-                venta_id=venta.id,
-                servicio_id=servicio_id,
-                cantidad=1,
-                precio_unitario=total,
-                subtotal=total
+        estado = 'Pagada' if saldo <= 0 else ('Parcial' if monto_pagado > 0 else 'Pendiente')
+        
+        venta = Venta(
+            fecha=datetime.utcnow(),
+            cliente_id=cliente_id,
+            subtotal=subtotal,
+            descuento=descuento,
+            total=total,
+            pagado=monto_pagado,
+            saldo=saldo,
+            estado=estado
+        )
+        db.session.add(venta)
+        db.session.flush()
+        
+        db.session.add(DetalleVenta(
+            venta_id=venta.id,
+            servicio_id=servicio_id,
+            cantidad=cantidad,
+            precio_unitario=precio_unitario,
+            subtotal=subtotal
+        ))
+        
+        if monto_pagado > 0 and cuenta_id:
+            db.session.add(Transaccion(
+                descripcion=f"Pago Venta #{venta.id}",
+                tipo='Ingreso',
+                monto=monto_pagado,
+                cuenta_id=cuenta_id,
+                cliente_id=cliente_id,
+                metodo_pago=metodo_pago,
+                conciliado=False,
+                fecha=datetime.utcnow()
             ))
             
-            if monto_pagado > 0 and cuenta_id:
-                db.session.add(Transaccion(
-                    descripcion=f"Pago Venta #{venta.id}: {servicio.nombre}",
-                    tipo='Ingreso',
-                    monto=monto_pagado,
-                    cuenta_id=cuenta_id,
-                    cliente_id=cliente_id,
-                    metodo_pago='Efectivo',
-                    conciliado=False,
-                    fecha=datetime.utcnow()
-                ))
-                
-            if saldo > 0 and cliente_id:
-                db.session.add(CuentaPorCobrar(
-                    cliente_id=cliente_id,
-                    concepto=f"Saldo Venta #{venta.id}: {servicio.nombre}",
-                    moneda=servicio.moneda,
-                    monto=saldo,
-                    fecha_emision=datetime.utcnow(),
-                    fecha_vencimiento=datetime.utcnow(),
-                    estado='Pendiente'
-                ))
-                
-            db.session.commit()
+        if saldo > 0 and cliente_id:
+            db.session.add(CuentaPorCobrar(
+                cliente_id=cliente_id,
+                concepto=f"Saldo Venta #{venta.id}",
+                moneda='PYG',
+                monto=saldo,
+                fecha_emision=datetime.utcnow(),
+                fecha_vencimiento=datetime.utcnow(),
+                estado='Pendiente'
+            ))
             
+        db.session.commit()
+        
     return redirect(url_for('main.ventas_vista'))
 
 @bp.route('/transferencia', methods=['POST'])
@@ -278,14 +284,12 @@ def agregar_prestacion():
         servicio = Servicio.query.get(servicio_id)
         
         if medico and servicio:
-            prestacion = PrestacionServicio(
+            db.session.add(PrestacionServicio(
                 medico_id=medico_id,
                 servicio_id=servicio_id,
                 cliente_id=cliente_id,
                 fecha=datetime.utcnow()
-            )
-            db.session.add(prestacion)
-            
+            ))
             porc_med = medico.porcentaje_medico if medico.porcentaje_medico else 70.0
             honorario_medico = servicio.precio * (porc_med / 100.0)
             
@@ -412,6 +416,18 @@ def agregar_cliente():
     db.session.commit()
     return redirect(url_for('main.cadastros'))
 
+@bp.route('/agregar-cliente-ajax', methods=['POST'])
+@login_required
+def agregar_cliente_ajax():
+    nombre = request.form.get('nombre')
+    telefono = request.form.get('telefono')
+    if nombre:
+        cl = Cliente(nombre=nombre, telefono=telefono)
+        db.session.add(cl)
+        db.session.commit()
+        return {'success': True, 'id': cl.id, 'nombre': cl.nombre}
+    return {'success': False}, 400
+
 @bp.route('/eliminar-cliente/<int:id>', methods=['POST'])
 @login_required
 def eliminar_cliente(id):
@@ -442,10 +458,12 @@ def eliminar_medico(id):
 @bp.route('/agregar-servicio', methods=['POST'])
 @login_required
 def agregar_servicio():
+    codigo = request.form.get('codigo')
     nombre = request.form.get('nombre')
+    descripcion = request.form.get('descripcion')
     moneda = request.form.get('moneda')
     precio = float(request.form.get('precio') or 0)
-    db.session.add(Servicio(nombre=nombre, moneda=moneda, precio=precio))
+    db.session.add(Servicio(codigo=codigo, nombre=nombre, descripcion=descripcion, moneda=moneda, precio=precio, activo=True))
     db.session.commit()
     return redirect(url_for('main.cadastros'))
 
@@ -581,25 +599,3 @@ def agregar_centro_costo():
     db.session.add(CentroCosto(nombre=nombre))
     db.session.commit()
     return redirect(url_for('main.cadastros'))
-
-@bp.route('/exportar-excel')
-@login_required
-def exportar_excel():
-    transacciones = Transaccion.query.order_by(Transaccion.fecha.desc()).all()
-    si = StringIO()
-    cw = csv.writer(si, delimiter=';')
-    cw.writerow(['Fecha', 'Descripción', 'Paciente/Cliente', 'Tipo', 'Categoría', 'Cuenta', 'Centro de Costo', 'Método de Pago', 'Monto'])
-    for t in transacciones:
-        cw.writerow([
-            t.fecha.strftime('%d/%m/%Y') if t.fecha else '',
-            t.descripcion,
-            t.cliente.nombre if t.cliente else 'Particular',
-            t.tipo,
-            t.categoria.nombre if t.categoria else '',
-            t.cuenta.nombre if t.cuenta else '',
-            t.centro_costo.nombre if t.centro_costo else '',
-            t.metodo_pago,
-            t.monto
-        ])
-    output = si.getvalue().encode('utf-8-sig')
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=transacciones.csv"})
