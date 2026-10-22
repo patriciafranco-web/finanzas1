@@ -3,7 +3,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h2>Módulo de Ventas</h2>
-        <p class="text-muted mb-0">Registro de servicios, cobros y generación automática de cuentas por cobrar</p>
+        <p class="text-muted mb-0">Flujo de venta de servicios, cuentas por cobrar y transacciones</p>
     </div>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalVenta"><i class="fa-solid fa-plus me-1"></i> Nueva Venta</button>
 </div>
@@ -24,11 +24,17 @@
             <tbody>
                 {% for v in ventas %}
                 <tr>
-                    <td>{{ v.fecha.strftime('%d/%m/%Y') }}</td>
-                    <td class="fw-bold">{{ v.cliente.nombre if v.cliente else 'Particular' }}</td>
-                    <td class="fw-bold">{{ "{:,.2f}".format(v.total) }}</td>
-                    <td class="text-success fw-bold">{{ "{:,.2f}".format(v.pagado) }}</td>
-                    <td class="text-danger fw-bold">{{ "{:,.2f}".format(v.saldo) }}</td>
+                    <td>{{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '-' }}</td>
+                    <td class="fw-bold">
+                        {% if v.cliente %}
+                            {{ v.cliente.nombre }}
+                        {% else %}
+                            Particular / General
+                        {% endif %}
+                    </td>
+                    <td class="fw-bold">₲ {{ "{:,.2f}".format(v.total or 0) }}</td>
+                    <td class="text-success fw-bold">₲ {{ "{:,.2f}".format(v.pagado or 0) }}</td>
+                    <td class="text-danger fw-bold">₲ {{ "{:,.2f}".format(v.saldo or 0) }}</td>
                     <td>
                         {% if v.estado == 'Pagada' %}<span class="badge bg-success">Pagada</span>
                         {% elif v.estado == 'Parcial' %}<span class="badge bg-info text-dark">Parcial</span>
@@ -45,46 +51,87 @@
 
 <!-- Modal Nueva Venta -->
 <div class="modal fade" id="modalVenta" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form action="{{ url_for('main.agregar_venta') }}" method="POST">
+            <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST">
                 <div class="modal-header">
                     <h5 class="modal-title">Registrar Nueva Venta</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Cliente / Paciente</label>
-                        <select class="form-select" name="cliente_id">
-                            <option value="">Particular / General</option>
-                            {% for cl in clientes %}
-                            <option value="{{ cl.id }}">{{ cl.nombre }}</option>
-                            {% endfor %}
-                        </select>
+                        <label class="form-label fw-bold">Cliente / Paciente</label>
+                        <div class="input-group">
+                            <select class="form-select" name="cliente_id" id="clienteSelect">
+                                <option value="">Seleccionar cliente...</option>
+                                {% for cl in clientes %}
+                                <option value="{{ cl.id }}">{{ cl.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalNuevoClienteRapido"><i class="fa-solid fa-plus"></i> Nuevo</button>
+                        </div>
                     </div>
+
                     <div class="mb-3">
-                        <label class="form-label">Servicio / Paquete</label>
-                        <select class="form-select" name="servicio_id" required>
+                        <label class="form-label fw-bold">Servicio</label>
+                        <select class="form-select" name="servicio_id" id="servicioSelect" required onchange="actualizarPrecioServicio(this)">
                             <option value="">Seleccionar servicio...</option>
                             {% for s in servicios %}
-                            <option value="{{ s.id }}">{{ s.nombre }} ({{ s.moneda }} {{ "{:,.2f}".format(s.precio) }})</option>
+                            <option value="{{ s.id }}" data-precio="{{ s.precio }}">[{{ s.codigo or 'S/C' }}] {{ s.nombre }} - ₲ {{ "{:,.2f}".format(s.precio) }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto Pagado en el Momento</label>
-                        <input type="number" step="any" class="form-control" name="monto_pagado" placeholder="0.00">
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Cantidad</label>
+                            <input type="number" class="form-control" name="cantidad" id="inputCantidad" value="1" min="1" oninput="calcularTotalesVenta()">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Precio Unitario</label>
+                            <input type="number" step="any" class="form-control" name="precio_unitario" id="inputPrecio" value="0" oninput="calcularTotalesVenta()">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Descuento</label>
+                            <input type="number" step="any" class="form-control" name="descuento" id="inputDescuento" value="0" oninput="calcularTotalesVenta()">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Cuenta de Ingreso (si abonó algo)</label>
-                        <select class="form-select" name="cuenta_id">
-                            <option value="">Seleccionar cuenta...</option>
-                            {% for c in cuentas %}
-                            <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
-                            {% endfor %}
-                        </select>
+
+                    <div class="p-3 bg-light rounded border mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Subtotal:</span>
+                            <strong id="lblSubtotal">₲ 0.00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1 text-danger">
+                            <span>Descuento:</span>
+                            <strong id="lblDescuento">₲ 0.00</strong>
+                        </div>
+                        <hr class="my-1">
+                        <div class="d-flex justify-content-between fs-5 fw-bold text-primary">
+                            <span>Total a Pagar:</span>
+                            <span id="lblTotal">₲ 0.00</span>
+                        </div>
                     </div>
-                    <small class="text-muted">Si el monto pagado es menor al precio del servicio, el saldo restante se generará automáticamente como <strong>Cuenta por Cobrar (CxC)</strong> a nombre del cliente.</small>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Monto Pagado en el Momento</label>
+                            <input type="number" step="any" class="form-control" name="monto_pagado" id="inputPagado" value="0" oninput="calcularTotalesVenta()">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Cuenta de Ingreso</label>
+                            <select class="form-select" name="cuenta_id">
+                                <option value="">Seleccionar cuenta...</option>
+                                {% for c in cuentas %}
+                                <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning py-2 mb-0">
+                        <small>Falta Cobrar: <strong id="lblSaldo" class="text-danger">₲ 0.00</strong></small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary">Confirmar Venta</button>
@@ -93,4 +140,29 @@
         </div>
     </div>
 </div>
+
+<script>
+function actualizarPrecioServicio(select) {
+    let opt = select.options[select.selectedIndex];
+    let precio = opt.getAttribute('data-precio') || 0;
+    document.getElementById('inputPrecio').value = precio;
+    calcularTotalesVenta();
+}
+
+function calcularTotalesVenta() {
+    let cantidad = parseFloat(document.getElementById('inputCantidad').value) || 0;
+    let precio = parseFloat(document.getElementById('inputPrecio').value) || 0;
+    let descuento = parseFloat(document.getElementById('inputDescuento').value) || 0;
+    let pagado = parseFloat(document.getElementById('inputPagado').value) || 0;
+
+    let subtotal = cantidad * precio;
+    let total = Math.max(0, subtotal - descuento);
+    let saldo = Math.max(0, total - pagado);
+
+    document.getElementById('lblSubtotal').innerText = '₲ ' + subtotal.toLocaleString('es-PY', {minimumFractionDigits: 2});
+    document.getElementById('lblDescuento').innerText = '₲ ' + descuento.toLocaleString('es-PY', {minimumFractionDigits: 2});
+    document.getElementById('lblTotal').innerText = '₲ ' + total.toLocaleString('es-PY', {minimumFractionDigits: 2});
+    document.getElementById('lblSaldo').innerText = '₲ ' + saldo.toLocaleString('es-PY', {minimumFractionDigits: 2});
+}
+</script>
 {% endblock %}
