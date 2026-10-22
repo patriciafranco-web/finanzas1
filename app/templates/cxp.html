@@ -28,7 +28,7 @@
                     <td class="fw-bold">{{ p.proveedor }}</td>
                     <td>{{ p.concepto }}</td>
                     <td><span class="badge bg-secondary">{{ p.categoria.nombre if p.categoria else 'Sin Categoría' }}</span></td>
-                    <td class="fw-bold text-danger">{% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.2f}".format(p.monto) }}</td>
+                    <td class="fw-bold text-danger">{% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.0f}".format(p.monto).replace(',', '.') }}</td>
                     <td>{{ p.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
                     <td>
                         {% if p.estado == 'Pagado' %}
@@ -57,7 +57,7 @@
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <div class="modal-body">
-                                    <p>Monto: <strong class="text-danger">{% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.2f}".format(p.monto) }}</strong></p>
+                                    <p>Monto: <strong class="text-danger">{% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.0f}".format(p.monto).replace(',', '.') }}</strong></p>
                                     <div class="mb-3">
                                         <label class="form-label">Seleccionar Cuenta de Egreso (Banco/Caja)</label>
                                         <select class="form-select" name="cuenta_id" required>
@@ -82,60 +82,78 @@
     </div>
 </div>
 
-<!-- Modal Nueva Cuenta a Pagar (Con Categorías según referencia de Nadia) -->
+<!-- Modal Nueva Cuenta a Pagar (Con Categorías y Anexos según referencia) -->
 <div class="modal fade" id="modalCxP" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_cxp') }}" method="POST">
                 <div class="modal-header">
-                    <h5 class="modal-title">Nueva Cuenta a Pagar</h5>
+                    <h5 class="modal-title">Crear Cuenta a Pagar</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Proveedor</label>
-                        <input type="text" class="form-control" name="proveedor" required placeholder="Ej: MEDSYS">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Proveedor *</label>
+                            <input type="text" class="form-control" name="proveedor" required placeholder="Ej: MEDSYS">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Concepto *</label>
+                            <input type="text" class="form-control" name="concepto" required placeholder="Ej: Insumos médicos">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Concepto / Descripción</label>
-                        <input type="text" class="form-control" name="concepto" required placeholder="Ej: Insumos médicos">
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Categoría del Gasto</label>
+                            <select class="form-select" name="categoria_id">
+                                <option value="">Selecciona una categoría...</option>
+                                {% for cat in categorias %}
+                                <option value="{{ cat.id }}">{{ cat.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Moneda</label>
+                            <select class="form-select" name="moneda" required>
+                                <option value="PYG">PYG (₲)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="BRL">BRL (R$)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Método de Pago</label>
+                            <select class="form-select" name="metodo_pago">
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Transferencia">Transferencia</option>
+                                <option value="Cheque">Cheque</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Categoría del Gasto</label>
-                        <select class="form-select" name="categoria_id">
-                            <option value="">Selecciona una categoría...</option>
-                            {% for cat in categorias %}
-                            <option value="{{ cat.id }}">{{ cat.nombre }}</option>
-                            {% endfor %}
-                        </select>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Monto *</label>
+                            <input type="number" step="any" class="form-control" name="monto" required placeholder="0.00">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Fecha de Vencimiento *</label>
+                            <input type="date" class="form-control" name="fecha_vencimiento" required>
+                        </div>
                     </div>
+
+                    <!-- SECCIÓN DE ANEXOS (Idéntica a la referencia de Nadia) -->
                     <div class="mb-3">
-                        <label class="form-label">Moneda</label>
-                        <select class="form-select" name="moneda" required>
-                            <option value="PYG">PYG (₲)</option>
-                            <option value="USD">USD ($)</option>
-                            <option value="BRL">BRL (R$)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Método de Pago</label>
-                        <select class="form-select" name="metodo_pago">
-                            <option value="Efectivo">Efectivo</option>
-                            <option value="Transferencia">Transferencia</option>
-                            <option value="Cheque">Cheque</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto</label>
-                        <input type="number" step="any" class="form-control" name="monto" required placeholder="0.00">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha de Vencimiento</label>
-                        <input type="date" class="form-control" name="fecha_vencimiento" required>
+                        <label class="form-label fw-bold">Anexos / Comprobantes</label>
+                        <div class="border border-dashed rounded p-4 text-center bg-light">
+                            <i class="fa-solid fa-cloud-arrow-up fa-2x text-muted mb-2"></i>
+                            <p class="mb-1 text-muted small">Arrastre e solte arquivos aqui ou clique para selecionar</p>
+                            <input type="file" class="form-control form-control-sm mt-2" name="archivo_anexo">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Cuenta a Pagar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Cuenta a Pagar</button>
                 </div>
             </form>
         </div>
