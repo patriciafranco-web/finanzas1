@@ -1,3 +1,5 @@
+import os
+import sqlite3
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -14,7 +16,6 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
-    # Importar TODOS los modelos para que SQLAlchemy los reconozca y cree sus tablas
     from app.models import User, Cuenta, Cliente, Medico, Servicio, Categoria, CentroCosto, Transaccion, CuentaPorCobrar, CuentaPorPagar, PrestacionServicio, Venta, DetalleVenta
 
     @login_manager.user_loader
@@ -24,9 +25,24 @@ def create_app():
     from app.routes import bp
     app.register_blueprint(bp)
 
+    # Asegurar que la carpeta instance exista y verificar si la base de datos necesita actualización
+    os.makedirs(app.instance_path, exist_ok=True)
+    db_path = os.path.join(app.instance_path, 'clinica_finanzas.db')
+
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(servicio);")
+            columns = [col[1] for col in cursor.fetchall()]
+            conn.close()
+            # Si la tabla existe pero no tiene la columna 'activo', se limpia la BD para recrearla con la nueva estructura
+            if columns and 'activo' not in columns:
+                os.remove(db_path)
+        except Exception:
+            pass
+
     with app.app_context():
-        # Recrea la base de datos limpia con todas las tablas nuevas
-        db.drop_all()
         db.create_all()
         
         # Crear usuario administrador por defecto si no existe
