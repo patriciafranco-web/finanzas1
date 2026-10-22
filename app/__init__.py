@@ -14,7 +14,7 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
-    from app.models import User
+    from app.models import User, Categoria
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -25,11 +25,20 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        
         # Crear usuario administrador por defecto si no existe
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', rol='Gerente Financiera')
             admin.set_password('clinica2026')
             db.session.add(admin)
-            db.session.commit()
+            
+        # Crear categorías básicas si la tabla está vacía
+        if not Categoria.query.first():
+            db.session.add(Categoria(nombre='Consultas Médicas', tipo='Ingreso'))
+            db.session.add(Categoria(nombre='Venta de Paquetes', tipo='Ingreso'))
+            db.session.add(Categoria(nombre='Insumos y Farmacia', tipo='Salida'))
+            db.session.add(Categoria(nombre='Honorarios Médicos', tipo='Salida'))
+            
+        db.session.commit()
 
     return app
