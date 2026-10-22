@@ -3,6 +3,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 class User(db.Model, UserMixin):
+    __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
@@ -15,14 +16,16 @@ class User(db.Model, UserMixin):
         return check_password_hash(self.password_hash, password)
 
 class Cuenta(db.Model):
+    __tablename__ = 'cuenta'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
-    tipo_cuenta = db.Column(db.String(50), nullable=False) # Caja Efectivo, Cuenta Corriente
-    moneda = db.Column(db.String(10), nullable=False) # PYG, USD, BRL
+    tipo_cuenta = db.Column(db.String(50), nullable=False)
+    moneda = db.Column(db.String(10), nullable=False)
     saldo_inicial = db.Column(db.Float, default=0.0)
     color = db.Column(db.String(20), default='#17b978')
 
 class Cliente(db.Model):
+    __tablename__ = 'cliente'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(150), nullable=False)
     documento = db.Column(db.String(50))
@@ -30,6 +33,7 @@ class Cliente(db.Model):
     email = db.Column(db.String(100))
 
 class Medico(db.Model):
+    __tablename__ = 'medico'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(150), nullable=False)
     especialidad = db.Column(db.String(100))
@@ -37,24 +41,28 @@ class Medico(db.Model):
     porcentaje_clinica = db.Column(db.Float, default=30.0)
 
 class Servicio(db.Model):
+    __tablename__ = 'servicio'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(150), nullable=False)
     moneda = db.Column(db.String(10), nullable=False)
     precio = db.Column(db.Float, nullable=False)
 
 class Categoria(db.Model):
+    __tablename__ = 'categoria'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     tipo = db.Column(db.String(20), nullable=False) # Ingreso, Salida
 
 class CentroCosto(db.Model):
+    __tablename__ = 'centro_costo'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
 
 class Transaccion(db.Model):
+    __tablename__ = 'transaccion'
     id = db.Column(db.Integer, primary_key=True)
     descripcion = db.Column(db.String(200), nullable=False)
-    tipo = db.Column(db.String(20), nullable=False) # Ingreso, Salida
+    tipo = db.Column(db.String(20), nullable=False)
     monto = db.Column(db.Float, nullable=False)
     metodo_pago = db.Column(db.String(50), default='Efectivo')
     conciliado = db.Column(db.Boolean, default=False)
@@ -77,6 +85,7 @@ class Transaccion(db.Model):
     cliente = db.relationship('Cliente', backref='transacciones')
 
 class CuentaPorCobrar(db.Model):
+    __tablename__ = 'cuenta_por_cobrar'
     id = db.Column(db.Integer, primary_key=True)
     concepto = db.Column(db.String(200), nullable=False)
     moneda = db.Column(db.String(10), nullable=False)
@@ -84,15 +93,13 @@ class CuentaPorCobrar(db.Model):
     monto = db.Column(db.Float, nullable=False)
     fecha_emision = db.Column(db.DateTime, nullable=False)
     fecha_vencimiento = db.Column(db.DateTime, nullable=False)
-    estado = db.Column(db.String(20), default='Pendiente') # Pendiente, Pagado
+    estado = db.Column(db.String(20), default='Pendiente') # Pendiente, Parcial, Pagado
     
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=True)
     cliente = db.relationship('Cliente', backref='cxc')
 
-    servicio_id = db.Column(db.Integer, db.ForeignKey('servicio.id'), nullable=True)
-    servicio = db.relationship('Servicio', backref='cxc')
-
 class CuentaPorPagar(db.Model):
+    __tablename__ = 'cuenta_por_pagar'
     id = db.Column(db.Integer, primary_key=True)
     proveedor = db.Column(db.String(150), nullable=False)
     concepto = db.Column(db.String(200), nullable=False)
@@ -101,9 +108,13 @@ class CuentaPorPagar(db.Model):
     monto = db.Column(db.Float, nullable=False)
     fecha_factura = db.Column(db.DateTime, nullable=False)
     fecha_vencimiento = db.Column(db.DateTime, nullable=False)
-    estado = db.Column(db.String(20), default='Pendiente') # Pendiente, Pagado
+    estado = db.Column(db.String(20), default='Pendiente')
+    
+    categoria_id = db.Column(db.Integer, db.ForeignKey('categoria.id'), nullable=True)
+    categoria = db.relationship('Categoria', backref='cxp')
 
 class PrestacionServicio(db.Model):
+    __tablename__ = 'prestacion_servicio'
     id = db.Column(db.Integer, primary_key=True)
     fecha = db.Column(db.DateTime, nullable=False)
     
@@ -115,3 +126,25 @@ class PrestacionServicio(db.Model):
 
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=True)
     cliente = db.relationship('Cliente', backref='prestaciones')
+
+class Venta(db.Model):
+    __tablename__ = 'venta'
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, nullable=False)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=False)
+    cliente = db.relationship('Cliente', backref='ventas')
+    total = db.Column(db.Float, nullable=False)
+    pagado = db.Column(db.Float, default=0.0)
+    saldo = db.Column(db.Float, default=0.0)
+    estado = db.Column(db.String(20), default='Pendiente') # Pagada, Parcial, Pendiente, Cancelada
+    detalles = db.relationship('DetalleVenta', backref='venta', cascade='all, delete-orphan')
+
+class DetalleVenta(db.Model):
+    __tablename__ = 'detalle_venta'
+    id = db.Column(db.Integer, primary_key=True)
+    venta_id = db.Column(db.Integer, db.ForeignKey('venta.id'), nullable=False)
+    servicio_id = db.Column(db.Integer, db.ForeignKey('servicio.id'), nullable=False)
+    servicio = db.relationship('Servicio')
+    cantidad = db.Column(db.Integer, default=1)
+    precio_unitario = db.Column(db.Float, nullable=False)
+    subtotal = db.Column(db.Float, nullable=False)
