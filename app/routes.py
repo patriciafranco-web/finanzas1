@@ -121,7 +121,7 @@ def dashboard():
 def ventas_vista():
     ventas = Venta.query.order_by(Venta.fecha.desc()).all()
     clientes = Cliente.query.all()
-    servicios = Servicio.query.filter_by(activo=True).all()
+    servicios = Servicio.query.all()  # Quitamos el filtro estricto por si hay datos antiguos
     cuentas = Cuenta.query.all()
     return render_template('ventas.html', ventas=ventas, clientes=clientes, servicios=servicios, cuentas=cuentas)
 
