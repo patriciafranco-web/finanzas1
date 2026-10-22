@@ -6,7 +6,7 @@
         <p class="text-muted mb-0">Administra tus finanzas y control de caja multimoneda</p>
     </div>
     <div>
-        <span class="badge bg-success p-2 me-2">PYG ₲ {{ "{:,.2f}".format(saldos.PYG) }}</span>
+        <span class="badge bg-success p-2 me-2">PYG ₲ {{ "{:,.0f}".format(saldos.PYG).replace(',', '.') }}</span>
         <span class="badge bg-primary p-2 me-2">USD $ {{ "{:,.2f}".format(saldos.USD) }}</span>
         <span class="badge bg-warning text-dark p-2">BRL R$ {{ "{:,.2f}".format(saldos.BRL) }}</span>
     </div>
@@ -108,10 +108,10 @@
                     <td>{{ t.centro_costo.nombre if t.centro_costo else '-' }}</td>
                     <td><span class="badge bg-light text-dark border">{{ t.metodo_pago }}</span></td>
                     <td class="fw-bold {% if t.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
-                        {{ "{:,.2f}".format(t.monto) }}
+                        ₲ {{ "{:,.0f}".format(t.monto).replace(',', '.') }}
                     </td>
                     <td class="fw-bold {% if t.saldo_resultante >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        {{ "{:,.2f}".format(t.saldo_resultante) }}
+                        ₲ {{ "{:,.0f}".format(t.saldo_resultante).replace(',', '.') }}
                     </td>
                     <td>
                         <form action="{{ url_for('main.eliminar_transaccion', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar transacción?');">
@@ -127,21 +127,21 @@
     </div>
 </div>
 
-<!-- MODAL NUEVA TRANSACCIÓN (Con Botones Estilo Referencia y Divisas) -->
+<!-- MODAL NUEVA TRANSACCIÓN (Con formato Gs y Divisas) -->
 <div class="modal fade" id="modalTransaccion" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ url_for('main.agregar_transaccion') }}" method="POST">
+            <form action="{{ url_for('main.agregar_transaccion') }}" method="POST" onsubmit="limpiarFormatoMoneda()">
                 <div class="modal-header">
                     <h5 class="modal-title">Nueva Transacción</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- Selector Tipo Estilo Botones (Referencia de Nadia) -->
+                    <!-- Selector Tipo Estilo Botones -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tipo de Transacción</label>
                         <input type="hidden" name="tipo" id="inputTipoTransaccion" value="Ingreso">
-                        <div class="btn-group w-150" role="group">
+                        <div class="btn-group w-100" role="group">
                             <button type="button" class="btn btn-outline-success active" id="btnIngreso" onclick="setTipoTransaccion('Ingreso')"><i class="fa-solid fa-arrow-trend-up me-1"></i> Ingreso</button>
                             <button type="button" class="btn btn-outline-danger" id="btnSalida" onclick="setTipoTransaccion('Salida')"><i class="fa-solid fa-arrow-trend-down me-1"></i> Salida</button>
                         </div>
@@ -152,8 +152,9 @@
                         <input type="text" class="form-control" name="descripcion" required placeholder="Ej: Pago de servicios">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Monto</label>
-                        <input type="number" step="any" class="form-control" name="monto" id="inputMontoTransaccion" required placeholder="0.00" oninput="calcularCambioNueva()">
+                        <label class="form-label">Monto (Gs.)</label>
+                        <input type="text" class="form-control" id="inputMontoTransaccionVisual" required placeholder="150.000" oninput="formatearMontoGs(this)">
+                        <input type="hidden" name="monto" id="inputMontoTransaccionReal">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Método de Pago</label>
@@ -172,7 +173,7 @@
                         </select>
                     </div>
 
-                    <!-- OPCIÓN DE PAGO EN DIVISAS / DÓLARES CON CÁLCULO EN VIVO -->
+                    <!-- OPCIÓN DE PAGO EN DIVISAS / DÓLARES -->
                     <div class="p-3 bg-light rounded border mb-3">
                         <div class="form-check mb-2">
                             <input class="form-check-input" type="checkbox" name="usar_divisa" id="checkDivisaNueva" onchange="toggleDivisaNueva(this)">
@@ -194,8 +195,6 @@
                                 Equivalente total: <span id="calcEquivalente">0</span> Gs.<br>
                                 <span id="calcDiferenciaTexto" class="fw-bold"></span>
                             </div>
-
-                            <small class="text-muted d-block mt-2">Si el valor convertido supera el monto, el excedente se registrará como <strong>Ganancia por Cambio</strong>.</small>
                         </div>
                     </div>
 
@@ -234,7 +233,7 @@
 <div class="modal fade" id="modalTransferencia" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ url_for('main.transferencia') }}" method="POST">
+            <form action="{{ url_for('main.transferencia') }}" method="POST" onsubmit="limpiarFormatoTransferencia()">
                 <div class="modal-header">
                     <h5 class="modal-title">Transferencia entre Cuentas</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -257,8 +256,9 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Monto a Transferir</label>
-                        <input type="number" step="any" class="form-control" name="monto" required placeholder="0.00">
+                        <label class="form-label">Monto a Transferir (Gs.)</label>
+                        <input type="text" class="form-control" id="inputMontoTransfVisual" required placeholder="500.000" oninput="formatearMontoGs(this)">
+                        <input type="hidden" name="monto" id="inputMontoTransfReal">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -287,6 +287,38 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 
+function formatearMontoGs(input) {
+    let valorLimpio = input.value.replace(/\D/g, '');
+    if (valorLimpio === '') {
+        input.value = '';
+        if(input.id.includes('Transf')) {
+            document.getElementById('inputMontoTransfReal').value = '';
+        } else {
+            document.getElementById('inputMontoTransaccionReal').value = '';
+        }
+        return;
+    }
+    let numero = parseInt(valorLimpio, 10);
+    input.value = numero.toLocaleString('es-PY');
+    
+    if(input.id.includes('Transf')) {
+        document.getElementById('inputMontoTransfReal').value = numero;
+    } else {
+        document.getElementById('inputMontoTransaccionReal').value = numero;
+        calcularCambioNueva();
+    }
+}
+
+function limpiarFormatoMoneda() {
+    let visual = document.getElementById('inputMontoTransaccionVisual').value.replace(/\./g, '').replace(/,/g, '');
+    document.getElementById('inputMontoTransaccionReal').value = visual;
+}
+
+function limpiarFormatoTransferencia() {
+    let visual = document.getElementById('inputMontoTransfVisual').value.replace(/\./g, '').replace(/,/g, '');
+    document.getElementById('inputMontoTransfReal').value = visual;
+}
+
 function setTipoTransaccion(tipo) {
     document.getElementById('inputTipoTransaccion').value = tipo;
     let btnIngreso = document.getElementById('btnIngreso');
@@ -313,22 +345,22 @@ function toggleDivisaNueva(checkbox) {
 }
 
 function calcularCambioNueva() {
-    var montoServicio = parseFloat(document.getElementById('inputMontoTransaccion').value) || 0;
+    var montoServicio = parseFloat(document.getElementById('inputMontoTransaccionReal').value) || 0;
     var montoDivisa = parseFloat(document.getElementById('montoDivisaNueva').value) || 0;
     var cotizacion = parseFloat(document.getElementById('cotizacionNueva').value) || 0;
     var resDiv = document.getElementById('resultadoCalculoCambio');
     
     if (montoDivisa > 0 && cotizacion > 0) {
         var totalGs = montoDivisa * cotizacion;
-        document.getElementById('calcEquivalente').innerText = totalGs.toLocaleString('es-PY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('calcEquivalente').innerText = totalGs.toLocaleString('es-PY', {minimumFractionDigits: 0, maximumFractionDigits: 0});
         
         var diffText = document.getElementById('calcDiferenciaTexto');
         var diferencia = totalGs - montoServicio;
         if (diferencia > 0) {
-            diffText.innerText = "Ganancia por Cambio estimada: + ₲ " + diferencia.toLocaleString('es-PY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            diffText.innerText = "Ganancia por Cambio estimada: + ₲ " + diferencia.toLocaleString('es-PY', {minimumFractionDigits: 0, maximumFractionDigits: 0});
             diffText.className = "text-success fw-bold";
         } else if (diferencia < 0) {
-            diffText.innerText = "Falta cubrir: ₲ " + Math.abs(diferencia).toLocaleString('es-PY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            diffText.innerText = "Falta cubrir: ₲ " + Math.abs(diferencia).toLocaleString('es-PY', {minimumFractionDigits: 0, maximumFractionDigits: 0});
             diffText.className = "text-danger fw-bold";
         } else {
             diffText.innerText = "¡Monto exacto cubierto!";
