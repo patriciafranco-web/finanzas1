@@ -127,7 +127,7 @@
     </div>
 </div>
 
-<!-- MODAL NUEVA TRANSACCIÓN (Sin Grupo ni Estado) -->
+<!-- MODAL NUEVA TRANSACCIÓN (Con Conversión Automática de Divisas en Vivo) -->
 <div class="modal fade" id="modalTransaccion" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -150,8 +150,52 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Monto</label>
-                        <input type="number" step="any" class="form-control" name="monto" required placeholder="0.00">
+                        <input type="number" step="any" class="form-control" name="monto" id="inputMontoTransaccion" required placeholder="0.00" oninput="calcularCambioNueva()">
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Método de Pago</label>
+                        <select class="form-select" name="metodo_pago" required>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia</option>
+                            <option value="POS">POS</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cuenta Bancaria / Caja</label>
+                        <select class="form-select" name="cuenta_id" required>
+                            {% for c in cuentas %}
+                            <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- OPCIÓN DE PAGO EN DIVISAS / DÓLARES CON CÁLCULO EN VIVO -->
+                    <div class="p-3 bg-light rounded border mb-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="usar_divisa" id="checkDivisaNueva" onchange="toggleDivisaNueva(this)">
+                            <label class="form-check-label fw-bold text-primary" for="checkDivisaNueva">¿Paciente paga en otra moneda (ej. Dólares)?</label>
+                        </div>
+                        <div id="camposDivisaNueva" style="display: none;">
+                            <div class="mb-2">
+                                <label class="form-label">Monto recibido en Dólares / Divisa</label>
+                                <input type="number" step="any" class="form-control" name="monto_divisa" id="montoDivisaNueva" placeholder="Ej: 100" oninput="calcularCambioNueva()">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Cotización del Día (Gs. por 1 USD)</label>
+                                <input type="number" step="any" class="form-control" name="cotizacion" id="cotizacionNueva" placeholder="Ej: 7500" oninput="calcularCambioNueva()">
+                            </div>
+                            
+                            <!-- CAJA DE CÁLCULO EN VIVO -->
+                            <div id="resultadoCalculoCambio" class="alert alert-info py-2 px-3 mt-2 mb-0 small" style="display: none;">
+                                <strong>Cálculo en vivo:</strong><br>
+                                Equivalente total: <span id="calcEquivalente">0</span> Gs.<br>
+                                <span id="calcDiferenciaTexto" class="fw-bold"></span>
+                            </div>
+
+                            <small class="text-muted d-block mt-2">Si el valor convertido supera el monto, el excedente se registrará como <strong>Ganancia por Cambio</strong>.</small>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label">Categoría</label>
                         <select class="form-select" name="categoria_id">
@@ -168,22 +212,6 @@
                             {% for cc in centros_costo %}
                             <option value="{{ cc.id }}">{{ cc.nombre }}</option>
                             {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Cuenta Bancaria / Caja</label>
-                        <select class="form-select" name="cuenta_id" required>
-                            {% for c in cuentas %}
-                            <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Método de Pago</label>
-                        <select class="form-select" name="metodo_pago" required>
-                            <option value="Efectivo">Efectivo</option>
-                            <option value="Transferencia">Transferencia</option>
-                            <option value="POS">POS</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -241,18 +269,59 @@
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const form = document.getElementById('filterForm');
-    if (!form) return;
-    form.querySelectorAll('select, input[type="date"]').forEach(function(el) {
-        el.addEventListener('change', function() { form.submit(); });
-    });
-    let searchInput = form.querySelector('input[name="q"]');
-    if (searchInput) {
-        let timeout = null;
-        searchInput.addEventListener('input', function() {
-            clearTimeout(timeout);
-            timeout = setTimeout(function() { form.submit(); }, 600);
+    if (form) {
+        form.querySelectorAll('select, input[type="date"]').forEach(function(el) {
+            el.addEventListener('change', function() { form.submit(); });
         });
+        let searchInput = form.querySelector('input[name="q"]');
+        if (searchInput) {
+            let timeout = null;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(function() { form.submit(); }, 600);
+            });
+        }
     }
 });
+
+function toggleDivisaNueva(checkbox) {
+    var campos = document.getElementById('camposDivisaNueva');
+    campos.style.display = checkbox.checked ? 'block' : 'none';
+    if (!checkbox.checked) {
+        document.getElementById('montoDivisaNueva').value = '';
+        document.getElementById('cotizacionNueva').value = '';
+        document.getElementById('resultadoCalculoCambio').style.display = 'none';
+    } else {
+        calcularCambioNueva();
+    }
+}
+
+function calcularCambioNueva() {
+    var montoServicio = parseFloat(document.getElementById('inputMontoTransaccion').value) || 0;
+    var montoDivisa = parseFloat(document.getElementById('montoDivisaNueva').value) || 0;
+    var cotizacion = parseFloat(document.getElementById('cotizacionNueva').value) || 0;
+    var resDiv = document.getElementById('resultadoCalculoCambio');
+    
+    if (montoDivisa > 0 && cotizacion > 0) {
+        var totalGs = montoDivisa * cotizacion;
+        document.getElementById('calcEquivalente').innerText = totalGs.toLocaleString('es-PY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        
+        var diffText = document.getElementById('calcDiferenciaTexto');
+        var diferencia = totalGs - montoServicio;
+        if (diferencia > 0) {
+            diffText.innerText = "Ganancia por Cambio estimada: + ₲ " + diferencia.toLocaleString('es-PY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            diffText.className = "text-success fw-bold";
+        } else if (diferencia < 0) {
+            diffText.innerText = "Falta cubrir: ₲ " + Math.abs(diferencia).toLocaleString('es-PY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            diffText.className = "text-danger fw-bold";
+        } else {
+            diffText.innerText = "¡Monto exacto cubierto!";
+            diffText.className = "text-muted fw-bold";
+        }
+        resDiv.style.display = 'block';
+    } else {
+        resDiv.style.display = 'none';
+    }
+}
 </script>
 {% endblock %}
