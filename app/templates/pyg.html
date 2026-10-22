@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2>Estado de Resultados (Pérdidas y Ganancias - PyG)</h2>
+        <p class="text-muted mb-0">Resumen financiero general de ingresos, costos y utilidad neta</p>
+    </div>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="card shadow-sm p-3 border-success"><h6 class="text-muted">Total Ingresos</h6><h3 class="text-success">₲ {{ "{:,.2f}".format(total_ingresos) }}</h3></div></div>
+    <div class="col-md-4"><div class="card shadow-sm p-3 border-danger"><h6 class="text-muted">Total Egresos / Costos</h6><h3 class="text-danger">₲ {{ "{:,.2f}".format(total_salidas) }}</h3></div></div>
+    <div class="col-md-4"><div class="card shadow-sm p-3 border-primary"><h6 class="text-muted">Utilidad Neta</h6><h3 class="text-primary">₲ {{ "{:,.2f}".format(utilidad_neta) }}</h3></div></div>
+</div>
+{% endblock %}

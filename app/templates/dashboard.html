@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2>Finanzas</h2>
+        <p class="text-muted mb-0">Administra tus finanzas y control de caja multimoneda</p>
+    </div>
+    <div>
+        <span class="badge bg-success p-2 me-2">PYG ₲ {{ "{:,.2f}".format(saldos.PYG) }}</span>
+        <span class="badge bg-primary p-2 me-2">USD $ {{ "{:,.2f}".format(saldos.USD) }}</span>
+        <span class="badge bg-warning text-dark p-2">BRL R$ {{ "{:,.2f}".format(saldos.BRL) }}</span>
+    </div>
+</div>
+
+<!-- Pestañas Superiores -->
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><a class="nav-link active fw-bold" href="{{ url_for('main.dashboard') }}">Transacciones</a></li>
+    <li class="nav-item"><a class="nav-link text-dark" href="{{ url_for('main.cadastros') }}">Cadastros & Cuentas</a></li>
+</ul>
+
+<!-- Filtros Avanzados Automáticos -->
+<form method="GET" action="{{ url_for('main.dashboard') }}" class="card shadow-sm mb-3 p-3 bg-light" id="filterForm">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-3">
+            <div class="input-group">
+                <span class="input-group-text bg-white"><i class="fa-solid fa-search"></i></span>
+                <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Buscar por descripción...">
+            </div>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="cuenta_id">
+                <option value="">Todas las cuentas</option>
+                {% for c in cuentas %}
+                <option value="{{ c.id }}" {% if selected_cuenta == c.id %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="categoria_id">
+                <option value="">Todas las categorías</option>
+                {% for cat in categorias %}
+                <option value="{{ cat.id }}" {% if selected_categoria == cat.id %}selected{% endif %}>{{ cat.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="centro_costo_id">
+                <option value="">Todos los centros</option>
+                {% for cc in centros_costo %}
+                <option value="{{ cc.id }}" {% if selected_centro == cc.id %}selected{% endif %}>{{ cc.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3 text-end">
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-dark btn-sm" title="Limpiar filtros"><i class="fa-solid fa-rotate-right me-1"></i> Limpiar Filtros</a>
+        </div>
+    </div>
+    <div class="row g-2 align-items-center mt-2">
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">Desde</span>
+                <input type="date" class="form-control" name="fecha_desde" value="{{ selected_desde }}">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">Hasta</span>
+                <input type="date" class="form-control" name="fecha_hasta" value="{{ selected_hasta }}">
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print();"><i class="fa-solid fa-file-pdf text-danger me-1"></i> PDF</button>
+            <a href="{{ url_for('main.exportar_excel') }}?{{ request.query_string.decode('utf-8') }}" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-file-excel me-1"></i> Excel</a>
+            <button type="button" class="btn btn-primary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#modalTransaccion">
+                <i class="fa-solid fa-plus me-1"></i> Nueva Transacción
+            </button>
+        </div>
+    </div>
+</form>
+
+<!-- Tabla de Transacciones -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Descripción / Paciente</th>
+                    <th>Categoría</th>
+                    <th>Cuenta</th>
+                    <th>Centro de Costo</th>
+                    <th>Método de Pago</th>
+                    <th>Monto</th>
+                    <th>Saldo Cuenta</th>
+                    <th>Conciliado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transacciones %}
+                <tr>
+                    <td>{{ t.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>
+                        <span class="fw-bold">{{ t.descripcion }}</span><br>
+                        <small class="text-muted"><i class="fa-solid fa-user me-1"></i>{{ t.cliente.nombre if t.cliente else 'Particular / General' }}</small>
+                        <br><span class="badge {% if t.tipo == 'Ingreso' %}bg-success{% else %}bg-danger{% endif %}">{{ t.tipo }}</span>
+                    </td>
+                    <td>{{ t.categoria.nombre if t.categoria else '-' }}</td>
+                    <td>{{ t.cuenta.nombre if t.cuenta else '-' }}</td>
+                    <td>{{ t.centro_costo.nombre if t.centro_costo else '-' }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ t.metodo_pago }}</span></td>
+                    
+                    <!-- Monto -->
+                    <td class="fw-bold {% if t.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
+                        {% if t.cuenta and t.cuenta.moneda == 'PYG' %}₲ {% elif t.cuenta and t.cuenta.moneda == 'USD' %}$ {% else %}R$ {% endif %}
+                        {{ "{:,.2f}".format(t.monto) }}
+                    </td>
+
+                    <!-- Saldo Cuenta con Color Dinámico -->
+                    <td class="fw-bold {% if t.saldo_resultante >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {% if t.cuenta and t.cuenta.moneda == 'PYG' %}₲ {% elif t.cuenta and t.cuenta.moneda == 'USD' %}$ {% else %}R$ {% endif %}
+                        {{ "{:,.2f}".format(t.saldo_resultante) }}
+                    </td>
+
+                    <td>
+                        {% if t.conciliado %}
+                        <span class="text-success"><i class="fa-solid fa-check-circle"></i> Sí</span>
+                        {% else %}
+                        <span class="text-muted"><i class="fa-regular fa-circle"></i> No</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <!-- Botón Editar -->
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditar{{ t.id }}" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                            
+                            <!-- Botón Eliminar -->
+                            <form action="{{ url_for('main.eliminar_transaccion', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Seguro que deseas eliminar esta transacción?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- MODAL: EDITAR TRANSACCIÓN PARA CADA FILA -->
+                <div class="modal fade" id="modalEditar{{ t.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="{{ url_for('main.editar_transaccion', id=t.id) }}" method="POST">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Editar Transacción #{{ t.id }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Tipo</label>
+                                        <select class="form-select" name="tipo" required>
+                                            <option value="Ingreso" {% if t.tipo == 'Ingreso' %}selected{% endif %}>Ingreso</option>
+                                            <option value="Salida" {% if t.tipo == 'Salida' %}selected{% endif %}>Salida</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Paciente / Cliente</label>
+                                        <select class="form-select" name="cliente_id">
+                                            <option value="">Particular / General</option>
+                                            {% for cl in clientes %}
+                                            <option value="{{ cl.id }}" {% if t.cliente_id == cl.id %}selected{% endif %}>{{ cl.nombre }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Descripción</label>
+                                        <input type="text" class="form-control" name="descripcion" value="{{ t.descripcion }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Monto</label>
+                                        <input type="number" step="any" class="form-control" name="monto" value="{{ t.monto }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Método de Pago</label>
+                                        <select class="form-select" name="metodo_pago" required>
+                                            <option value="Efectivo" {% if t.metodo_pago == 'Efectivo' %}selected{% endif %}>Efectivo</option>
+                                            <option value="Transferencia" {% if t.metodo_pago == 'Transferencia' %}selected{% endif %}>Transferencia Bancaria</option>
+                                            <option value="Tarjeta de Crédito" {% if t.metodo_pago == 'Tarjeta de Crédito' %}selected{% endif %}>Tarjeta de Crédito</option>
+                                            <option value="POS" {% if t.metodo_pago == 'POS' %}selected{% endif %}>POS / Débito</option>
+                                            <option value="Cheque" {% if t.metodo_pago == 'Cheque' %}selected{% endif %}>Cheque</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Cuenta Bancaria / Caja</label>
+                                        <select class="form-select" name="cuenta_id" required>
+                                            {% for c in cuentas %}
+                                            <option value="{{ c.id }}" {% if t.cuenta_id == c.id %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Categoría</label>
+                                        <select class="form-select" name="categoria_id">
+                                            <option value="">Sin categoría</option>
+                                            {% for cat in categorias %}
+                                            <option value="{{ cat.id }}" {% if t.categoria_id == cat.id %}selected{% endif %}>{{ cat.nombre }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Centro de Costo</label>
+                                        <select class="form-select" name="centro_costo_id">
+                                            <option value="">Sin centro de costo</option>
+                                            {% for cc in centros_costo %}
+                                            <option value="{{ cc.id }}" {% if t.centro_costo_id == cc.id %}selected{% endif %}>{{ cc.nombre }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Fecha</label>
+                                        <input type="date" class="form-control" name="fecha" value="{{ t.fecha.strftime('%Y-%m-%d') }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Observación</label>
+                                        <textarea class="form-control" name="observacion" rows="2">{{ t.observacion or '' }}</textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-receipt fa-2x mb-2"></i><br>
+                        No hay transacciones registradas con los filtros seleccionados.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL: NUEVA TRANSACCIÓN -->
+<div class="modal fade" id="modalTransaccion" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('main.agregar_transaccion') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva Transacción</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-select" name="tipo" required>
+                            <option value="Ingreso">Ingreso</option>
+                            <option value="Salida">Salida</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Servicio / Paquete (Opcional)</label>
+                        <select class="form-select" name="servicio_id" onchange="var opt=this.options[this.selectedIndex]; if(opt.value){ this.form.descripcion.value=opt.getAttribute('data-nombre'); this.form.monto.value=opt.getAttribute('data-precio'); }">
+                            <option value="">Seleccionar servicio o paquete...</option>
+                            {% for s in servicios %}
+                            <option value="{{ s.id }}" data-nombre="{{ s.nombre }}" data-precio="{{ s.precio }}">{{ s.nombre }} (₲ {{ "{:,.2f}".format(s.precio) }})</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Al seleccionar un servicio, se completará la descripción y el precio automáticamente.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Paciente / Cliente (Opcional)</label>
+                        <select class="form-select" name="cliente_id">
+                            <option value="">Seleccionar paciente o cliente...</option>
+                            {% for cl in clientes %}
+                            <option value="{{ cl.id }}">{{ cl.nombre }} {% if cl.documento %}(Doc: {{ cl.documento }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <input type="text" class="form-control" name="descripcion" required placeholder="Ej: Cobro de consulta">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Monto</label>
+                        <input type="number" step="any" class="form-control" name="monto" required placeholder="0.00">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Método de Pago</label>
+                        <select class="form-select" name="metodo_pago" required onchange="filtrarCuentasModal(this)">
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Transferencia">Transferencia Bancaria</option>
+                            <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                            <option value="POS">POS / Débito</option>
+                            <option value="Cheque">Cheque</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Cuenta Bancaria / Caja</label>
+                        <select class="form-select" name="cuenta_id" required>
+                            {% for c in cuentas %}
+                            <option value="{{ c.id }}" data-tipo="{{ c.tipo_cuenta }}" data-moneda="{{ c.moneda }}">{{ c.nombre }} ({{ c.moneda }} - {{ c.tipo_cuenta }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- OPCIÓN DE PAGO EN DIVISAS / DÓLARES -->
+                    <div class="p-3 bg-light rounded border mb-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="usar_divisa" id="checkDivisaNueva" onchange="document.getElementById('camposDivisaNueva').style.display = this.checked ? 'block' : 'none';">
+                            <label class="form-check-label fw-bold text-primary" for="checkDivisaNueva">¿Paciente paga en otra moneda (ej. Dólares)?</label>
+                        </div>
+                        <div id="camposDivisaNueva" style="display: none;">
+                            <div class="mb-2">
+                                <label class="form-label">Monto recibido en Dólares / Divisa</label>
+                                <input type="number" step="any" class="form-control" name="monto_divisa" placeholder="Ej: 50">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Cotización del Día (Gs. por 1 USD)</label>
+                                <input type="number" step="any" class="form-control" name="cotizacion" placeholder="Ej: 7500">
+                            </div>
+                            <small class="text-muted">Si el valor convertido supera el monto, el excedente se registrará como <strong>Ganancia por Cambio</strong>.</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Categoría</label>
+                        <select class="form-select" name="categoria_id">
+                            <option value="">Sin categoría</option>
+                            {% for cat in categorias %}
+                            <option value="{{ cat.id }}">{{ cat.nombre }} ({{ cat.tipo }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Centro de Costo</label>
+                        <select class="form-select" name="centro_costo_id">
+                            <option value="">Sin centro de costo</option>
+                            {% for cc in centros_costo %}
+                            <option value="{{ cc.id }}">{{ cc.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Fecha</label>
+                        <input type="date" class="form-control" name="fecha" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Observación</label>
+                        <textarea class="form-control" name="observacion" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Guardar Transacción</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function filtrarCuentasModal(selectMetodo) {
+    var form = selectMetodo.form;
+    var cuentaSelect = form.querySelector('select[name="cuenta_id"]');
+    var metodo = selectMetodo.value;
+    var primerVisible = null;
+    
+    for (var i = 0; i < cuentaSelect.options.length; i++) {
+        var opt = cuentaSelect.options[i];
+        if (!opt.value) continue;
+        var tipo = opt.getAttribute('data-tipo') || '';
+        
+        if (metodo === 'Efectivo') {
+            if (tipo.toLowerCase().includes('caja')) {
+                opt.style.display = '';
+                if (!primerVisible) primerVisible = opt.value;
+            } else {
+                opt.style.display = 'none';
+            }
+        } else {
+            if (!tipo.toLowerCase().includes('caja')) {
+                opt.style.display = '';
+                if (!primerVisible) primerVisible = opt.value;
+            } else {
+                opt.style.display = 'none';
+            }
+        }
+    }
+    if (primerVisible) {
+        cuentaSelect.value = primerVisible;
+    }
+}
+
+// FILTRADO AUTOMÁTICO EN TIEMPO REAL
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById('filterForm');
+    if (!form) return;
+
+    form.querySelectorAll('select, input[type="date"]').forEach(function(el) {
+        el.addEventListener('change', function() {
+            form.submit();
+        });
+    });
+
+    let searchInput = form.querySelector('input[name="q"]');
+    if (searchInput) {
+        let timeout = null;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(timeout);
+            timeout = setTimeout(function() {
+                form.submit();
+            }, 600);
+        });
+    }
+});
+</script>
+{% endblock %}

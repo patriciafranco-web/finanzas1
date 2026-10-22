@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Financiero - Clínica</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .sidebar { min-height: 100vh; background-color: #1F4E79; color: white; }
+        .sidebar .nav-link { color: rgba(255,255,255,0.8); margin-bottom: 5px; border-radius: 5px; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: #153554; color: white; }
+        .main-content { padding: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar / Menú Lateral -->
+            <div class="col-md-3 col-lg-2 sidebar p-3 d-flex flex-column justify-content-between">
+                <div>
+                    <h3 class="text-white mb-4 fw-bold fs-4"><i class="fa-solid fa-hospital me-2"></i>ClínicaFin</h3>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
+                                <i class="fa-solid fa-wallet me-2"></i> Finanzas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'main.cadastros' %}active{% endif %}" href="{{ url_for('main.cadastros') }}">
+                                <i class="fa-solid fa-folder-open me-2"></i> Cadastros
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'main.honorarios' %}active{% endif %}" href="{{ url_for('main.honorarios') }}">
+                                <i class="fa-solid fa-user-doctor me-2"></i> Honorarios Médicos
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint in ['main.pyg', 'main.estado_resultados'] %}active{% endif %}" href="{{ url_for('main.pyg') }}">
+                                <i class="fa-solid fa-file-invoice-dollar me-2"></i> Estado de Resultados
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'main.flujo_proyectado' %}active{% endif %}" href="{{ url_for('main.flujo_proyectado') }}">
+                                <i class="fa-solid fa-chart-line me-2"></i> Flujo Proyectado
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'main.conciliacion' %}active{% endif %}" href="{{ url_for('main.conciliacion') }}">
+                                <i class="fa-solid fa-scale-balanced me-2"></i> Conciliación
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="text-white-50 small text-center py-3 border-top border-secondary">
+                    ERP Multimoneda v2.0<br>Ciudad del Este - Py/Br
+                </div>
+            </div>
+
+            <!-- Contenido Principal -->
+            <div class="col-md-9 col-lg-10 main-content">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

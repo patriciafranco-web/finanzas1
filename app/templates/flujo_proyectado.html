@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Flujo de Caja Proyectado</h2>
+        <p class="text-muted mb-0">Proyección basada en Cuentas por Cobrar y Cuentas por Pagar pendientes</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-success p-3">
+            <h6 class="text-muted">Total Cuentas por Cobrar Pendientes (CxC)</h6>
+            <h3 class="text-success fw-bold">₲ {{ "{:,.2f}".format(total_cxc or 0) }}</h3>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-danger p-3">
+            <h6 class="text-muted">Total Cuentas por Pagar Pendientes (CxP)</h6>
+            <h3 class="text-danger fw-bold">₲ {{ "{:,.2f}".format(total_cxp or 0) }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-success text-white fw-bold">Cobros Pendientes a Futuro</div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Concepto</th>
+                            <th>Vencimiento</th>
+                            <th>Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if cxc_pendientes %}
+                            {% for x in cxc_pendientes %}
+                            <tr>
+                                <td class="fw-bold">{{ x.cliente.nombre if x.cliente else 'General' }}</td>
+                                <td>{{ x.concepto }}</td>
+                                <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}</td>
+                                <td class="fw-bold text-success">
+                                    {% if x.moneda == 'PYG' %}₲ {% elif x.moneda == 'USD' %}$ {% else %}R$ {% endif %}
+                                    {{ "{:,.2f}".format(x.monto or 0) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                        <tr><td colspan="4" class="text-center py-4 text-muted">No hay cuentas por cobrar pendientes.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-danger text-white fw-bold">Pagos Pendientes a Futuro</div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Proveedor</th>
+                            <th>Concepto</th>
+                            <th>Vencimiento</th>
+                            <th>Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if cxp_pendientes %}
+                            {% for p in cxp_pendientes %}
+                            <tr>
+                                <td class="fw-bold">{{ p.proveedor }}</td>
+                                <td>{{ p.concepto }}</td>
+                                <td>{{ p.fecha_vencimiento.strftime('%d/%m/%Y') if p.fecha_vencimiento else '-' }}</td>
+                                <td class="fw-bold text-danger">
+                                    {% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}
+                                    {{ "{:,.2f}".format(p.monto or 0) }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                        <tr><td colspan="4" class="text-center py-4 text-muted">No hay cuentas a pagar pendientes.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

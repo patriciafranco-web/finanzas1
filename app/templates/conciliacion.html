@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Conciliación Bancaria</h2>
+        <p class="text-muted mb-0">Verifica y concilia las transacciones registradas con tus extractos bancarios</p>
+    </div>
+    <div>
+        <a href="{{ url_for('main.auto_conciliar') }}" class="btn btn-success btn-sm">
+            <i class="fa-solid fa-check-double me-1"></i> Auto-Conciliar Todo
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-light fw-bold">Transacciones Pendientes de Conciliación</div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Descripción</th>
+                    <th>Cuenta</th>
+                    <th>Método de Pago</th>
+                    <th>Monto</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transacciones %}
+                <tr>
+                    <td>{{ t.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td class="fw-bold">{{ t.descripcion }}</td>
+                    <td>{{ t.cuenta.nombre if t.cuenta else '-' }} ({{ t.cuenta.moneda if t.cuenta else '' }})</td>
+                    <td>{{ t.metodo_pago }}</td>
+                    <td class="fw-bold {% if t.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
+                        {% if t.cuenta and t.cuenta.moneda == 'PYG' %}₲ {% elif t.cuenta and t.cuenta.moneda == 'USD' %}$ {% else %}R$ {% endif %}
+                        {{ "{:,.2f}".format(t.monto) }}
+                    </td>
+                    <td><span class="badge bg-warning text-dark">Pendiente</span></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-circle-check fa-2x text-success mb-2"></i><br>
+                        ¡Excelente! No hay transacciones pendientes de conciliación. Todas están al día.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
