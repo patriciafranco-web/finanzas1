@@ -43,15 +43,18 @@ class Medico(db.Model):
 class Servicio(db.Model):
     __tablename__ = 'servicio'
     id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(50), unique=True, nullable=True)
     nombre = db.Column(db.String(150), nullable=False)
+    descripcion = db.Column(db.Text)
     moneda = db.Column(db.String(10), nullable=False)
     precio = db.Column(db.Float, nullable=False)
+    activo = db.Column(db.Boolean, default=True)
 
 class Categoria(db.Model):
     __tablename__ = 'categoria'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
-    tipo = db.Column(db.String(20), nullable=False) # Ingreso, Salida
+    tipo = db.Column(db.String(20), nullable=False)
 
 class CentroCosto(db.Model):
     __tablename__ = 'centro_costo'
@@ -131,8 +134,10 @@ class Venta(db.Model):
     __tablename__ = 'venta'
     id = db.Column(db.Integer, primary_key=True)
     fecha = db.Column(db.DateTime, nullable=False)
-    cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=False)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=True)
     cliente = db.relationship('Cliente', backref='ventas')
+    subtotal = db.Column(db.Float, default=0.0)
+    descuento = db.Column(db.Float, default=0.0)
     total = db.Column(db.Float, nullable=False)
     pagado = db.Column(db.Float, default=0.0)
     saldo = db.Column(db.Float, default=0.0)
@@ -148,3 +153,4 @@ class DetalleVenta(db.Model):
     cantidad = db.Column(db.Integer, default=1)
     precio_unitario = db.Column(db.Float, nullable=False)
     subtotal = db.Column(db.Float, nullable=False)
+    observacion = db.Column(db.String(200))
