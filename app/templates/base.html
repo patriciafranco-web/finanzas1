@@ -3,72 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema Financiero - Clínica</title>
-    <!-- Bootstrap 5 CSS -->
+    <title>ClínicaFin - ERP Financiero</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { background-color: #f8f9fa; }
-        .sidebar { min-height: 100vh; background-color: #1F4E79; color: white; }
-        .sidebar .nav-link { color: rgba(255,255,255,0.8); margin-bottom: 5px; border-radius: 5px; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: #153554; color: white; }
-        .main-content { padding: 30px; }
+        .sidebar { min-height: 100vh; background-color: #1e3d59; color: white; position: fixed; width: 250px; top: 0; left: 0; z-index: 100; }
+        .sidebar .nav-link { color: #cfd8dc; font-weight: 500; margin-bottom: 5px; border-radius: 4px; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: #17b978; color: white; }
+        .main-content { margin-left: 250px; padding: 30px; }
+        @media (max-width: 768px) {
+            .sidebar { width: 100%; position: relative; min-height: auto; }
+            .main-content { margin-left: 0; padding: 15px; }
+        }
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar / Menú Lateral -->
-            <div class="col-md-3 col-lg-2 sidebar p-3 d-flex flex-column justify-content-between">
-                <div>
-                    <h3 class="text-white mb-4 fw-bold fs-4"><i class="fa-solid fa-hospital me-2"></i>ClínicaFin</h3>
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
-                                <i class="fa-solid fa-wallet me-2"></i> Finanzas
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'main.cadastros' %}active{% endif %}" href="{{ url_for('main.cadastros') }}">
-                                <i class="fa-solid fa-folder-open me-2"></i> Cadastros
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'main.honorarios' %}active{% endif %}" href="{{ url_for('main.honorarios') }}">
-                                <i class="fa-solid fa-user-doctor me-2"></i> Honorarios Médicos
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint in ['main.pyg', 'main.estado_resultados'] %}active{% endif %}" href="{{ url_for('main.pyg') }}">
-                                <i class="fa-solid fa-file-invoice-dollar me-2"></i> Estado de Resultados
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'main.flujo_proyectado' %}active{% endif %}" href="{{ url_for('main.flujo_proyectado') }}">
-                                <i class="fa-solid fa-chart-line me-2"></i> Flujo Proyectado
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'main.conciliacion' %}active{% endif %}" href="{{ url_for('main.conciliacion') }}">
-                                <i class="fa-solid fa-scale-balanced me-2"></i> Conciliación
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <div class="text-white-50 small text-center py-3 border-top border-secondary">
-                    ERP Multimoneda v2.0<br>Ciudad del Este - Py/Br
-                </div>
-            </div>
 
-            <!-- Contenido Principal -->
-            <div class="col-md-9 col-lg-10 main-content">
-                {% block content %}{% endblock %}
-            </div>
+    <!-- MENÚ LATERAL -->
+    <div class="sidebar p-3 d-flex flex-column justify-content-between">
+        <div>
+            <h3 class="fw-bold mb-4 text-white"><i class="fa-solid fa-hospital-user me-2"></i>ClínicaFin</h3>
+            <ul class="nav flex-column">
+                <li class="nav-item"><a href="{{ url_for('main.dashboard') }}" class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}"><i class="fa-solid fa-wallet me-2"></i> Finanzas</a></li>
+                <li class="nav-item"><a href="{{ url_for('main.cadastros') }}" class="nav-link {% if request.endpoint == 'main.cadastros' %}active{% endif %}"><i class="fa-solid fa-folder-open me-2"></i> Cadastros</a></li>
+                <li class="nav-item"><a href="{{ url_for('main.cxc_vista') }}" class="nav-link {% if request.endpoint == 'main.cxc_vista' %}active{% endif %}"><i class="fa-solid fa-hand-holding-dollar me-2"></i> Cuentas por Cobrar</a></li>
+                <li class="nav-item"><a href="{{ url_for('main.cxp_vista') }}" class="nav-link {% if request.endpoint == 'main.cxp_vista' %}active{% endif %}"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Cuentas a Pagar</a></li>
+                <li class="nav-item"><a href="{{ url_for('main.honorarios') }}" class="nav-link {% if request.endpoint == 'main.honorarios' %}active{% endif %}"><i class="fa-solid fa-user-doctor me-2"></i> Honorarios Médicos</a></li>
+                <li class="nav-item"><a href="{{ url_for('main.pyg') }}" class="nav-link {% if request.endpoint == 'main.pyg' %}active{% endif %}"><i class="fa-solid fa-chart-pie me-2"></i> Estado de Resultados</a></li>
+                <li class="nav-item"><a href="{{ url_for('main.flujo_proyectado') }}" class="nav-link {% if request.endpoint == 'main.flujo_proyectado' %}active{% endif %}"><i class="fa-solid fa-chart-line me-2"></i> Flujo Proyectado</a></li>
+                <li class="nav-item"><a href="{{ url_for('main.conciliacion') }}" class="nav-link {% if request.endpoint == 'main.conciliacion' %}active{% endif %}"><i class="fa-solid fa-scale-balanced me-2"></i> Conciliación</a></li>
+            </ul>
+        </div>
+        <div class="border-top pt-3 text-center">
+            <small class="text-white-50">ERP Multimoneda v2.0<br>Clínica Médica</small>
+            <div class="mt-2"><a href="{{ url_for('main.logout') }}" class="btn btn-sm btn-outline-light w-100"><i class="fa-solid fa-right-from-bracket me-1"></i> Cerrar Sesión</a></div>
         </div>
     </div>
 
-    <!-- Bootstrap 5 JS Bundle -->
+    <!-- CONTENIDO PRINCIPAL -->
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
