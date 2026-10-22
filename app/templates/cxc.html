@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2>Cuentas por Cobrar</h2>
+        <p class="text-muted mb-0">Gestión de pagos pendientes de pacientes y clientes</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCxC"><i class="fa-solid fa-plus me-1"></i> Nueva Cuenta por Cobrar</button>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Cliente</th>
+                    <th>Concepto</th>
+                    <th>Moneda</th>
+                    <th>Vencimiento</th>
+                    <th>Monto</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for x in cxc_list %}
+                <tr>
+                    <td class="fw-bold">{{ x.cliente.nombre if x.cliente else 'General' }}</td>
+                    <td>{{ x.concepto }}</td>
+                    <td><span class="badge bg-secondary">{{ x.moneda }}</span></td>
+                    <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
+                    <td class="fw-bold text-success">
+                        {% if x.moneda == 'PYG' %}₲ {% elif x.moneda == 'USD' %}$ {% else %}R$ {% endif %}
+                        {{ "{:,.2f}".format(x.monto) }}
+                    </td>
+                    <td>
+                        {% if x.estado == 'Pendiente' %}
+                        <span class="badge bg-warning text-dark">Pendiente</span>
+                        {% else %}
+                        <span class="badge bg-success">Pagado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            {% if x.estado == 'Pendiente' %}
+                            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalCobrar{{ x.id }}">Cobrar</button>
+                            {% endif %}
+                            <form action="{{ url_for('main.eliminar_cxc', id=x.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar?');" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Modal Cobrar CxC con Cálculo Automático -->
+                <div class="modal fade" id="modalCobrar{{ x.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="{{ url_for('main.cobrar_cxc', id=x.id) }}" method="POST">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Cobrar: {{ x.concepto }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Monto a cobrar: <strong class="text-success" id="montoOriginal{{ x.id }}" data-valor="{{ x.monto }}">{% if x.moneda == 'PYG' %}₲ {% elif x.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.2f}".format(x.monto) }}</strong></p>
+                                    <div class="mb-3">
+                                        <label class="form-label">Cuenta de Ingreso</label>
+                                        <select class="form-select" name="cuenta_id" required>
+                                            {% for c in cuentas %}
+                                            <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <hr>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="usar_divisa" id="checkDivisa{{ x.id }}" onchange="toggleDivisa({{ x.id }})">
+                                        <label class="form-check-label fw-bold text-primary" for="checkDivisa{{ x.id }}">¿Paga en divisa / otra moneda (ej. Dólares)?</label>
+                                    </div>
+                                    <div id="camposDivisa{{ x.id }}" style="display: none;" class="p-3 bg-light rounded border">
+                                        <div class="mb-3">
+                                            <label class="form-label">Monto recibido en Dólares / Divisa</label>
+                                            <input type="number" step="any" class="form-control" name="monto_divisa" id="montoDivisa{{ x.id }}" placeholder="Ej: 50" oninput="calcularVuelto({{ x.id }})">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Cotización del Día (Gs. por 1 USD)</label>
+                                            <input type="number" step="any" class="form-control" name="cotizacion" id="cotizacion{{ x.id }}" placeholder="Ej: 7500" oninput="calcularVuelto({{ x.id }})">
+                                        </div>
+                                        <div class="alert alert-info py-2 mb-0">
+                                            <small>Total Convertido: <strong id="totalConvertido{{ x.id }}">₲ 0</strong></small><br>
+                                            <small>Vuelto / Ganancia por Cambio: <strong id="vueltoCalculado{{ x.id }}" class="text-success">₲ 0</strong></small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="submit" class="btn btn-success">Confirmar Cobro</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <tr><td colspan="7" class="text-center py-4 text-muted">No hay cuentas por cobrar pendientes.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Nueva CxC -->
+<div class="modal fade" id="modalCxC" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('main.agregar_cxc') }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva Cuenta por Cobrar</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Cliente / Paciente</label>
+                        <select class="form-select" name="cliente_id">
+                            <option value="">Seleccionar cliente...</option>
+                            {% for cl in clientes %}
+                            <option value="{{ cl.id }}">{{ cl.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Concepto</label>
+                        <input type="text" class="form-control" name="concepto" required placeholder="Ej: Paquete 1 mes">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Moneda</label>
+                        <select class="form-select" name="moneda">
+                            <option value="PYG">PYG (₲)</option>
+                            <option value="USD">USD ($)</option>
+                            <option value="BRL">BRL (R$)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto</label>
+                        <input type="number" step="any" class="form-control" name="monto" required placeholder="1.000.000">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fecha de Vencimiento</label>
+                        <input type="date" class="form-control" name="fecha_vencimiento" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Guardar Cuenta por Cobrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleDivisa(id) {
+    let campos = document.getElementById('camposDivisa' + id);
+    campos.style.display = document.getElementById('checkDivisa' + id).checked ? 'block' : 'none';
+}
+
+function calcularVuelto(id) {
+    let montoOriginal = parseFloat(document.getElementById('montoOriginal' + id).getAttribute('data-valor')) || 0;
+    let montoDivisa = parseFloat(document.getElementById('montoDivisa' + id).value) || 0;
+    let cotizacion = parseFloat(document.getElementById('cotizacion' + id).value) || 0;
+    
+    let totalGs = montoDivisa * cotizacion;
+    let diferencia = totalGs - montoOriginal;
+    
+    document.getElementById('totalConvertido' + id).innerText = '₲ ' + totalGs.toLocaleString('es-PY', {minimumFractionDigits: 2});
+    document.getElementById('vueltoCalculado' + id).innerText = '₲ ' + (diferencia > 0 ? diferencia.toLocaleString('es-PY', {minimumFractionDigits: 2}) : '0');
+}
+</script>
+{% endblock %}
