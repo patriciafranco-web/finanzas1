@@ -10,7 +10,21 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'clinica_finanzas_secret_key_2026'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinica_finanzas.db'
+    
+    # --- CONFIGURACIÓN DE DISCO PERSISTENTE (RENDER / LOCAL) ---
+    # Si existe el disco persistente de Render (/var/data), guardamos la base de datos ahí.
+    # De lo contrario, usamos la ruta local habitual de Flask (app.instance_path).
+    if os.path.exists('/var/data'):
+        basedir = '/var/data'
+    else:
+        os.makedirs(app.instance_path, exist_ok=True)
+        basedir = app.instance_path
+
+    db_path = os.path.join(basedir, 'clinica_finanzas.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
+    # ----------------------------------------------------------
+
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     db.init_app(app)
     login_manager.init_app(app)
@@ -25,10 +39,7 @@ def create_app():
     from app.routes import bp
     app.register_blueprint(bp)
 
-    # Asegurar que la carpeta instance exista y verificar si la base de datos necesita actualización
-    os.makedirs(app.instance_path, exist_ok=True)
-    db_path = os.path.join(app.instance_path, 'clinica_finanzas.db')
-
+    # Verificar si la base de datos necesita actualización de esquema
     if os.path.exists(db_path):
         try:
             conn = sqlite3.connect(db_path)
@@ -65,3 +76,4 @@ def create_app():
         db.session.commit()
 
     return app
+
