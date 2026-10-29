@@ -306,7 +306,6 @@ def cancelar_venta(id):
 @login_required
 def excluir_venta(id):
     v = Venta.query.get_or_404(id)
-    # Regla: No se puede excluir si tiene cobros registrados
     if v.pagado > 0:
         flash(f'No se puede excluir la venta #{v.id} porque tiene cobros registrados. Para dejarla sin efecto conserve el historial usando "Cancelar venta".', 'danger')
     else:
@@ -594,7 +593,6 @@ def editar_transaccion(id):
 @login_required
 def eliminar_transaccion(id):
     t = Transaccion.query.get_or_404(id)
-    # Validar si el período o cuenta está bloqueado (aquí se puede agregar validación adicional)
     db.session.delete(t)
     db.session.commit()
     flash('Transacción excluida correctamente.', 'success')
@@ -619,7 +617,6 @@ def editar_cuenta(id):
     c = Cuenta.query.get_or_404(id)
     c.nombre = request.form.get('nombre')
     c.tipo_cuenta = request.form.get('tipo_cuenta')
-    # Si no tiene transacciones, permitir cambiar moneda
     if not c.transacciones:
         c.moneda = request.form.get('moneda', c.moneda)
     db.session.commit()
@@ -728,13 +725,32 @@ def agregar_servicio():
     flash('Servicio registrado exitosamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
+@bp.route('/editar-servicio/<int:id>', methods=['POST'])
+@login_required
+def editar_servicio(id):
+    s = Servicio.query.get_or_404(id)
+    s.nombre = request.form.get('nombre')
+    s.moneda = request.form.get('moneda')
+    s.precio = float(request.form.get('precio') or 0)
+    s.costo_unitario = float(request.form.get('costo_unitario') or 0)
+    s.profesional_asociado = request.form.get('profesional_asociado')
+    s.reparto_adicional = float(request.form.get('reparto_adicional') or 0)
+    db.session.commit()
+    flash('Servicio actualizado correctamente.', 'success')
+    return redirect(url_for('main.cadastros'))
+
 @bp.route('/eliminar-servicio/<int:id>', methods=['POST'])
 @login_required
 def eliminar_servicio(id):
     s = Servicio.query.get_or_404(id)
-    db.session.delete(s)
-    db.session.commit()
-    flash('Servicio eliminado correctamente.', 'success')
+    # Validar si el servicio está en uso en algún paquete
+    en_uso = PaqueteItem.query.filter_by(servicio_id=id).first()
+    if en_uso:
+        flash('Un servicio que está dentro de un plan no se puede excluir. Primero hay que quitarlo del plan.', 'danger')
+    else:
+        db.session.delete(s)
+        db.session.commit()
+        flash('Servicio eliminado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-cxc', methods=['POST'])
