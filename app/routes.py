@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, Response, flash
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
-from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio, User, Venta, DetalleVenta
+from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio, User, Venta, DetalleVenta, Paquete, PaqueteItem, CuotaVenta
 from datetime import datetime, time
 import csv
 from io import StringIO
@@ -121,75 +121,103 @@ def dashboard():
 def ventas_vista():
     ventas = Venta.query.order_by(Venta.fecha.desc()).all()
     clientes = Cliente.query.all()
-    servicios = Servicio.query.all()  # Quitamos el filtro estricto por si hay datos antiguos
+    servicios = Servicio.query.all()
+    paquetes = Paquete.query.all()
     cuentas = Cuenta.query.all()
-    return render_template('ventas.html', ventas=ventas, clientes=clientes, servicios=servicios, cuentas=cuentas)
+    return render_template('ventas.html', ventas=ventas, clientes=clientes, servicios=servicios, paquetes=paquetes, cuentas=cuentas)
 
 @bp.route('/agregar-venta-completa', methods=['POST'])
 @login_required
 def agregar_venta_completa():
     cliente_id = int(request.form.get('cliente_id')) if request.form.get('cliente_id') else None
-    servicio_id = int(request.form.get('servicio_id')) if request.form.get('servicio_id') else None
-    cantidad = int(request.form.get('cantidad') or 1)
-    precio_unitario = float(request.form.get('precio_unitario') or 0)
-    descuento = float(request.form.get('descuento') or 0)
+    paquete_id = int(request.form.get('paquete_id')) if request.form.get('paquete_id') else None
+    forma_pago = request.form.get('forma_pago', 'Efectivo/Transferencia')
+    num_cuotas = int(request.form.get('num_cuotas') or 1)
     monto_pagado = float(request.form.get('monto_pagado') or 0)
     cuenta_id = int(request.form.get('cuenta_id')) if request.form.get('cuenta_id') else None
-    metodo_pago = request.form.get('metodo_pago', 'Efectivo')
     
-    if servicio_id:
-        subtotal = cantidad * precio_unitario
-        total = max(0.0, subtotal - descuento)
+    if paquete_id:
+        paquete = Paquete.query.get_or_404(paquete_id)
+        precio_total = paquete.precio
         
-        saldo = total - monto_pagado
-        if saldo > 0 and not cliente_id:
-            flash('Seleccioná un cliente para registrar el saldo pendiente', 'danger')
-            return redirect(url_for('main.ventas_vista'))
-            
+        # 1. Cálculos automáticos exactos exigidos por el manual de la clínica
+        iva = precio_total / 11  # IVA = precio ÷ 11
+        
+        # Tarifa de pasarela (ej. 3.3% si es tarjeta de crédito)
+        tarifa_pasarela = precio_total * 0.033 if 'Crédito' in forma_pago else 0.0
+        
+        # Costo total de los servicios que componen el paquete (incluyendo reparto adicional %)
+        costo_servicios = sum(item.costo_total_item for item in paquete.items)
+        
+        # Margen de contribución
+        margen_contribucion = precio_total - iva - tarifa_pasarela - costo_servicios
+        
+        # Costo fijo prorrateado por plan (ejemplo referencial ajustable)
+        costo_fijo_plan = 9428.013  
+        ganancia_plan = margen_contribucion - costo_fijo_plan
+        
+        saldo = precio_total - monto_pagado
         estado = 'Pagada' if saldo <= 0 else ('Parcial' if monto_pagado > 0 else 'Pendiente')
         
         venta = Venta(
             fecha=datetime.utcnow(),
             cliente_id=cliente_id,
-            subtotal=subtotal,
-            descuento=descuento,
-            total=total,
+            paquete_id=paquete.id,
+            subtotal=precio_total,
+            total=precio_total,
             pagado=monto_pagado,
             saldo=saldo,
-            estado=estado
+            estado=estado,
+            iva=iva,
+            tarifa_pasarela=tarifa_pasarela,
+            costo_servicios=costo_servicios,
+            margen_contribucion=margen_contribucion,
+            costo_fijo_plan=costo_fijo_plan,
+            ganancia_plan=ganancia_plan
         )
         db.session.add(venta)
-        db.session.flush()
+        db.session.flush() # Para obtener el ID de la venta
         
-        db.session.add(DetalleVenta(
-            venta_id=venta.id,
-            servicio_id=servicio_id,
-            cantidad=cantidad,
-            precio_unitario=precio_unitario,
-            subtotal=subtotal
-        ))
+        # 2. Generación automática de cuotas en Cuentas por Cobrar (CxC)
+        monto_cuota = (precio_total - monto_pagado) / num_cuotas if num_cuotas > 0 else precio_total
+        vencimientos_labels = ["Día de la venta", "1 mes después", "2 meses después", "3 meses después", "4 meses después"]
+        
+        for i in range(1, num_cuotas + 1):
+            label = vencimientos_labels[i-1] if (i-1) < len(vencimientos_labels) else f"{i-1} meses después"
+            num_str = f"{i} de {num_cuotas}"
+            
+            # Guardar cuota en la venta
+            db.session.add(CuotaVenta(
+                venta_id=venta.id,
+                numero_cuota=num_str,
+                vencimiento_label=label,
+                valor=monto_cuota,
+                estado='Pendiente'
+            ))
+            
+            # Sincronizar con Cuentas por Cobrar (CxC)
+            if cliente_id:
+                db.session.add(CuentaPorCobrar(
+                    cliente_id=cliente_id,
+                    concepto=f"Cuota {num_str} - {paquete.nombre} (Venta #{venta.id})",
+                    moneda='PYG',
+                    metodo_pago=forma_pago,
+                    monto=monto_cuota,
+                    fecha_emision=datetime.utcnow(),
+                    fecha_vencimiento=datetime.utcnow(),
+                    estado='Pendiente'
+                ))
         
         if monto_pagado > 0 and cuenta_id:
             db.session.add(Transaccion(
-                descripcion=f"Pago Venta #{venta.id}",
+                descripcion=f"Pago inicial Venta #{venta.id} - {paquete.nombre}",
                 tipo='Ingreso',
                 monto=monto_pagado,
                 cuenta_id=cuenta_id,
                 cliente_id=cliente_id,
-                metodo_pago=metodo_pago,
+                metodo_pago=forma_pago,
                 conciliado=False,
                 fecha=datetime.utcnow()
-            ))
-            
-        if saldo > 0 and cliente_id:
-            db.session.add(CuentaPorCobrar(
-                cliente_id=cliente_id,
-                concepto=f"Saldo Venta #{venta.id}",
-                moneda='PYG',
-                monto=saldo,
-                fecha_emision=datetime.utcnow(),
-                fecha_vencimiento=datetime.utcnow(),
-                estado='Pendiente'
             ))
             
         db.session.commit()
@@ -233,6 +261,7 @@ def cadastros():
     clientes = Cliente.query.all()
     medicos = Medico.query.all()
     servicios = Servicio.query.all()
+    paquetes = Paquete.query.all()
     cxc_list = CuentaPorCobrar.query.all()
     cxp_list = CuentaPorPagar.query.all()
     categorias = Categoria.query.all()
@@ -242,10 +271,54 @@ def cadastros():
                            clientes=clientes, 
                            medicos=medicos, 
                            servicios=servicios,
+                           paquetes=paquetes,
                            cxc_list=cxc_list,
                            cxp_list=cxp_list,
                            categorias=categorias,
                            centros_costo=centros_costo)
+
+# --- NUEVAS RUTAS PARA LA GESTIÓN DE PAQUETES / PLANES Y COMPOSICIÓN DE ÍTEMS ---
+
+@bp.route('/agregar-paquete', methods=['POST'])
+@login_required
+def agregar_paquete():
+    nombre = request.form.get('nombre')
+    moneda = request.form.get('moneda', 'PYG')
+    precio = float(request.form.get('precio') or 0)
+    duracion_meses = int(request.form.get('duracion_meses') or 4)
+    
+    paquete = Paquete(nombre=nombre, moneda=moneda, precio=precio, duracion_meses=duracion_meses)
+    db.session.add(paquete)
+    db.session.flush()
+    
+    # Recoger los ítems enviados desde el formulario dinámico
+    servicio_ids = request.form.getlist('servicio_id[]')
+    cantidades = request.form.getlist('cantidad[]')
+    costos_unitarios = request.form.getlist('costo_unitario[]')
+    repartos = request.form.getlist('reparto_adicional[]')
+    
+    for i in range(len(servicio_ids)):
+        if servicio_ids[i]:
+            db.session.add(PaqueteItem(
+                paquete_id=paquete.id,
+                servicio_id=int(servicio_ids[i]),
+                cantidad=int(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1,
+                costo_unitario=float(costos_unitarios[i]) if i < len(costos_unitarios) and costos_unitarios[i] else 0.0,
+                reparto_adicional=float(repartos[i]) if i < len(repartos) and repartos[i] else 0.0
+            ))
+            
+    db.session.commit()
+    return redirect(url_for('main.cadastros'))
+
+@bp.route('/eliminar-paquete/<int:id>', methods=['POST'])
+@login_required
+def eliminar_paquete(id):
+    p = Paquete.query.get_or_404(id)
+    db.session.delete(p)
+    db.session.commit()
+    return redirect(url_for('main.cadastros'))
+
+# -----------------------------------------------------------------------------
 
 @bp.route('/cuentas-por-cobrar')
 @login_required
@@ -463,7 +536,21 @@ def agregar_servicio():
     descripcion = request.form.get('descripcion')
     moneda = request.form.get('moneda')
     precio = float(request.form.get('precio') or 0)
-    db.session.add(Servicio(codigo=codigo, nombre=nombre, descripcion=descripcion, moneda=moneda, precio=precio, activo=True))
+    costo_unitario = float(request.form.get('costo_unitario') or 0)
+    profesional_asociado = request.form.get('profesional_asociado')
+    reparto_adicional = float(request.form.get('reparto_adicional') or 0)
+    
+    db.session.add(Servicio(
+        codigo=codigo, 
+        nombre=nombre, 
+        descripcion=descripcion, 
+        moneda=moneda, 
+        precio=precio, 
+        costo_unitario=costo_unitario,
+        profesional_asociado=profesional_asociado,
+        reparto_adicional=reparto_adicional,
+        activo=True
+    ))
     db.session.commit()
     return redirect(url_for('main.cadastros'))
 
@@ -479,7 +566,6 @@ def eliminar_servicio(id):
 @login_required
 def agregar_cxc():
     cliente_id = int(request.form.get('cliente_id')) if request.form.get('cliente_id') else None
-    servicio_id = int(request.form.get('servicio_id')) if request.form.get('servicio_id') else None
     concepto = request.form.get('concepto')
     moneda = request.form.get('moneda')
     metodo_pago = request.form.get('metodo_pago', 'Efectivo')
@@ -488,7 +574,6 @@ def agregar_cxc():
     
     db.session.add(CuentaPorCobrar(
         cliente_id=cliente_id,
-        servicio_id=servicio_id,
         concepto=concepto,
         moneda=moneda,
         metodo_pago=metodo_pago,
