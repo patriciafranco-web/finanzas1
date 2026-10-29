@@ -32,11 +32,41 @@ def logout():
 @bp.route('/')
 @login_required
 def pyg():
+    # Estado de Resultados Gerencial (PyG) según manual
+    ventas = Venta.query.filter_by(estado='Pagada').all() # O todas las activas
+    total_ingresos_netos = sum((v.total - v.iva) for v in ventas)
+    
+    costo_total_servicios = sum(v.costo_servicios for v in ventas)
+    
+    # Costos fijos del mes desde Cuentas a Pagar con categoría de costo fijo
+    cxp_fijos = CuentaPorPagar.query.all()
+    total_costos_fijos = sum(p.monto for p in cxp_fijos if p.concepto and 'fijo' in p.concepto.lower())
+    
+    total_egresos_costos = costo_total_servicios + total_costos_fijos
+    utilidad_neta = total_ingresos_netos - total_egresos_costos
+    
+    # Desglose de planes vendidos y valor por profesional
+    total_planes = len(ventas)
+    valor_por_profesional = []
+    medicos = Medico.query.all()
+    for m in medicos:
+        prestaciones_medico = PrestacionServicio.query.filter_by(medico_id=m.id).count()
+        valor_medico = prestaciones_medico * (m.porcentaje_medico * 600000 / 100) if hasattr(m, 'porcentaje_medico') else 0
+        valor_por_profesional.append({
+            'nombre': m.nombre,
+            'especialidad': m.especialidad,
+            'consultas': prestaciones_medico,
+            'valor': valor_medico
+        })
+
     transacciones = Transaccion.query.all()
-    total_ingresos = sum(t.monto for t in transacciones if t.tipo == 'Ingreso')
-    total_salidas = sum(t.monto for t in transacciones if t.tipo == 'Salida')
-    utilidad_neta = total_ingresos - total_salidas
-    return render_template('pyg.html', transacciones=transacciones, total_ingresos=total_ingresos, total_salidas=total_salidas, utilidad_neta=utilidad_neta)
+    return render_template('pyg.html', 
+                           transacciones=transacciones, 
+                           total_ingresos=total_ingresos_netos, 
+                           total_salidas=total_egresos_costos, 
+                           utilidad_neta=utilidad_neta,
+                           total_planes=total_planes,
+                           valor_por_profesional=valor_por_profesional)
 
 @bp.route('/finanzas')
 @login_required
@@ -495,7 +525,20 @@ def flujo_proyectado():
     cxp_pendientes = CuentaPorPagar.query.filter_by(estado='Pendiente').all()
     total_cxc = sum(x.monto for x in cxc_pendientes)
     total_cxp = sum(p.monto for p in cxp_pendientes)
-    return render_template('flujo_proyectado.html', cxc_pendientes=cxc_pendientes, cxp_pendientes=cxp_pendientes, total_cxc=total_cxc, total_cxp=total_cxp)
+    
+    # Simulación de distribución temporal del costo de servicios (25% por mes durante 4 meses)
+    ventas_activas = Venta.query.filter(Venta.estado != 'Cancelada').all()
+    distribucion_costos = sum((v.costo_servicios * 0.25) for v in ventas_activas)
+    
+    saldo_proyectado = total_cxc - (total_cxp + distribucion_costos)
+    
+    return render_template('flujo_proyectado.html', 
+                           cxc_pendientes=cxc_pendientes, 
+                           cxp_pendientes=cxp_pendientes, 
+                           total_cxc=total_cxc, 
+                           total_cxp=total_cxp,
+                           distribucion_costos=distribucion_costos,
+                           saldo_proyectado=saldo_proyectado)
 
 @bp.route('/agregar-transaccion', methods=['POST'])
 @login_required
@@ -725,7 +768,7 @@ def cobrar_cxc(id):
         observacion="Cobro de cuenta por cobrar"
     ))
     db.session.commit()
-    flash('Cobro registrado y transaccion generada con éxito.', 'success')
+    flash('Cobro registrado y transacción generada con éxito.', 'success')
     return redirect(url_for('main.cxc_vista'))
 
 @bp.route('/agregar-cxp', methods=['POST'])
