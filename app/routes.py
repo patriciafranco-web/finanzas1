@@ -101,7 +101,6 @@ def dashboard():
     servicios = Servicio.query.all()
     clientes = Cliente.query.all()
     
-    # Comprobar si hay período activo bloqueado
     bloqueos_activos = BloqueoPeriodo.query.filter_by(estado='Bloqueado').all()
 
     return render_template('dashboard.html', 
@@ -192,7 +191,6 @@ def agregar_venta_completa():
         paquete = Paquete.query.get_or_404(paquete_id)
         precio_total = paquete.precio
         
-        # 1. Cálculos automáticos exactos exigidos por el manual de la clínica (IVA = precio ÷ 11)[cite: 8, 9]
         iva = precio_total / 11 
         tarifa_pasarela = precio_total * 0.033 if 'Crédito' in forma_pago else 0.0
         costo_servicios = sum(item.costo_total_item for item in paquete.items)
@@ -222,7 +220,6 @@ def agregar_venta_completa():
         db.session.add(venta)
         db.session.flush() 
         
-        # 2. Generación automática de cuotas en Cuentas por Cobrar (CxC)[cite: 11]
         monto_cuota = (precio_total - monto_pagado) / num_cuotas if num_cuotas > 0 else precio_total
         vencimientos_labels = ["Día de la venta", "1 mes después", "2 meses después", "3 meses después", "4 meses después"]
         
@@ -265,6 +262,67 @@ def agregar_venta_completa():
         db.session.commit()
         
     return redirect(url_for('main.ventas_vista'))
+
+@bp.route('/cancelar-venta/<int:id>', methods=['POST'])
+@login_required
+def cancelar_venta(id):
+    v = Venta.query.get_or_404(id)
+    v.estado = 'Cancelada'
+    for cuota in v.cuotas:
+        if cuota.estado == 'Pendiente':
+            cuota.estado = 'Cancelada'
+    db.session.commit()
+    flash(f'La venta #{v.id} ha sido cancelada correctamente.', 'warning')
+    return redirect(url_for('main.ventas_vista'))
+
+@bp.route('/excluir-venta/<int:id>', methods=['POST'])
+@login_required
+def excluir_venta(id):
+    v = Venta.query.get_or_404(id)
+    if v.pagado > 0:
+        flash(f'No se puede excluir la venta #{v.id} porque tiene cobros registrados. Debe anular los cobros primero o usar "Cancelar venta".', 'danger')
+    else:
+        for cuota in v.cuotas:
+            cxc_rel = CuentaPorCobrar.query.filter_by(concepto=f"Cuota {cuota.numero_cuota} - {v.paquete.nombre if v.paquete else 'Plan'} (Venta #{v.id})").first()
+            if cxc_rel:
+                db.session.delete(cxc_rel)
+        db.session.delete(v)
+        db.session.commit()
+        flash(f'La venta #{v.id} ha sido excluida del sistema.', 'success')
+    return redirect(url_for('main.ventas_vista'))
+
+@bp.route('/registrar-cobro-avanzado', methods=['POST'])
+@login_required
+def registrar_cobro_avanzado():
+    cxc_id = request.form.get('cxc_id', type=int)
+    moneda_cobro = request.form.get('moneda_cobro', 'PYG')
+    cotizacion = float(request.form.get('cotizacion') or 1)
+    monto_recibido = float(request.form.get('monto_recibido') or 0)
+    descuento = float(request.form.get('descuento') or 0)
+    motivo_descuento = request.form.get('motivo_descuento', '')
+    forma_cobro = request.form.get('forma_cobro', 'Efectivo')
+    cuenta_id = request.form.get('cuenta_id', type=int)
+
+    cxc = CuentaPorCobrar.query.get_or_404(cxc_id)
+    equivalente_gs = monto_recibido * cotizacion
+
+    if equivalente_gs > 0 and cuenta_id:
+        db.session.add(Transaccion(
+            descripcion=f"Cobro avanzado: {cxc.concepto}",
+            tipo='Ingreso',
+            monto=equivalente_gs,
+            cuenta_id=cuenta_id,
+            cliente_id=cxc.cliente_id,
+            metodo_pago=forma_cobro,
+            conciliado=False,
+            fecha=datetime.utcnow(),
+            observacion=f"Moneda: {moneda_cobro}, Monto original: {monto_recibido}, Cotización: {cotizacion}, Descuento: {descuento} ({motivo_descuento})"
+        ))
+        cxc.estado = 'Pagado'
+        db.session.commit()
+        flash('Cobro registrado correctamente con conversión multimoneda.', 'success')
+    
+    return redirect(url_for('main.cxc_vista'))
 
 @bp.route('/transferencia', methods=['POST'])
 @login_required
