@@ -1,14 +1,124 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h2>Estado de Resultados (Pérdidas y Ganancias - PyG)</h2>
         <p class="text-muted mb-0">Resumen financiero general de ingresos, costos y utilidad neta</p>
     </div>
+    <div>
+        <form method="GET" class="d-flex align-items-center gap-2">
+            <span class="badge bg-warning text-dark p-2">DATOS DE EJEMPLO</span>
+            <select class="form-select form-select-sm fw-bold" name="periodo" onchange="this.form.submit()">
+                <option value="Octubre 2026" selected>Octubre 2026</option>
+                <option value="Septiembre 2026">Septiembre 2026</option>
+            </select>
+        </form>
+    </div>
 </div>
+
+<!-- Tarjetas Principales de Resumen Financiero -->
 <div class="row g-3 mb-4">
-    <div class="col-md-4"><div class="card shadow-sm p-3 border-success"><h6 class="text-muted">Total Ingresos</h6><h3 class="text-success">₲ {{ "{:,.2f}".format(total_ingresos) }}</h3></div></div>
-    <div class="col-md-4"><div class="card shadow-sm p-3 border-danger"><h6 class="text-muted">Total Egresos / Costos</h6><h3 class="text-danger">₲ {{ "{:,.2f}".format(total_salidas) }}</h3></div></div>
-    <div class="col-md-4"><div class="card shadow-sm p-3 border-primary"><h6 class="text-muted">Utilidad Neta</h6><h3 class="text-primary">₲ {{ "{:,.2f}".format(utilidad_neta) }}</h3></div></div>
+    <div class="col-md-4">
+        <div class="card shadow-sm p-3 border-success h-100">
+            <h6 class="text-muted mb-1">Total Ingresos</h6>
+            <h3 class="text-success fw-bold mb-0">₲ {{ "{:,.0f}".format(total_ingresos).replace(',', '.') }}</h3>
+            <small class="text-muted">Ventas netas sin IVA menos descuentos</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm p-3 border-danger h-100">
+            <h6 class="text-muted mb-1">Total Egresos / Costos</h6>
+            <h3 class="text-danger fw-bold mb-0">₲ {{ "{:,.0f}".format(total_salidas).replace(',', '.') }}</h3>
+            <small class="text-muted">Costo de servicios + costos fijos</small>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm p-3 border-primary h-100">
+            <h6 class="text-muted mb-1">Utilidad Neta</h6>
+            <h3 class="text-primary fw-bold mb-0">₲ {{ "{:,.0f}".format(utilidad_neta).replace(',', '.') }}</h3>
+            <small class="text-muted">Ingresos menos egresos</small>
+        </div>
+    </div>
+</div>
+
+<!-- Bloque de Planes Vendidos en el Mes -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h5 class="fw-bold mb-3">Planes vendidos en el mes</h5>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="p-3 bg-light rounded border">
+                    <span class="text-muted small d-block">Cantidad</span>
+                    <h4 class="fw-bold mb-0 text-dark">{{ total_planes | default(3) }} <span class="fs-6 fw-normal text-muted">planes</span></h4>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="p-3 bg-light rounded border">
+                    <span class="text-muted small d-block">Valor vendido (IVA incluido)</span>
+                    <h4 class="fw-bold mb-0 text-dark">₲ {{ "{:,.0f}".format(total_ingresos * 1.1) }}</h4>
+                </div>
+            </div>
+        </div>
+        <p class="text-muted small mt-2 mb-0">
+            <i class="fa-solid fa-info-circle me-1"></i> Programa Metabolismo: 3 planes. Los ingresos de arriba van sin IVA y ya descuentan los descuentos concedidos.
+        </p>
+    </div>
+</div>
+
+<!-- Tabla de Valor por Profesional -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white fw-bold">
+        Valor por profesional
+        <span class="text-muted small fw-normal d-block">Consultas y honorarios del mes, según los planes vendidos</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Profesional</th>
+                    <th>Servicio</th>
+                    <th class="text-center">Consultas</th>
+                    <th class="text-end">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if valor_por_profesional %}
+                    {% for vp in valor_por_profesional %}
+                    <tr>
+                        <td class="fw-bold">{{ vp.nombre }}</td>
+                        <td>{{ vp.especialidad or 'Consulta médica' }}</td>
+                        <td class="text-center">{{ vp.consultas }}</td>
+                        <td class="text-end fw-bold">₲ {{ "{:,.0f}".format(vp.valor).replace(',', '.') }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td>Dra. Romina</td>
+                        <td>Consulta metabólica</td>
+                        <td class="text-center">9</td>
+                        <td class="text-end fw-bold">₲ 5.400.000</td>
+                    </tr>
+                    <tr>
+                        <td>Nutricionista</td>
+                        <td>Consulta nutricional</td>
+                        <td class="text-center">9</td>
+                        <td class="text-end fw-bold">₲ 2.700.000</td>
+                    </tr>
+                    <tr>
+                        <td>Dentista</td>
+                        <td>Consulta odontológica</td>
+                        <td class="text-center">3</td>
+                        <td class="text-end fw-bold">₲ 900.000</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+            <tfoot class="table-light fw-bold">
+                <tr>
+                    <td colspan="3">Total</td>
+                    <td class="text-end text-primary">₲ 9.000.000</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
 </div>
 {% endblock %}
