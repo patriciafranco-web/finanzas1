@@ -7,10 +7,9 @@
     </div>
     <div>
         <form method="GET" class="d-flex align-items-center gap-2">
-            <span class="badge bg-warning text-dark p-2">DATOS DE EJEMPLO</span>
             <select class="form-select form-select-sm fw-bold" name="periodo" onchange="this.form.submit()">
-                <option value="Octubre 2026" selected>Octubre 2026</option>
-                <option value="Septiembre 2026">Septiembre 2026</option>
+                <option value="Octubre 2026" {% if selected_periodo == 'Octubre 2026' %}selected{% endif %}>Octubre 2026</option>
+                <option value="Septiembre 2026" {% if selected_periodo == 'Septiembre 2026' %}selected{% endif %}>Septiembre 2026</option>
             </select>
         </form>
     </div>
@@ -49,7 +48,7 @@
             <div class="col-md-6">
                 <div class="p-3 bg-light rounded border">
                     <span class="text-muted small d-block">Cantidad</span>
-                    <h4 class="fw-bold mb-0 text-dark">{{ total_planes | default(3) }} <span class="fs-6 fw-normal text-muted">planes</span></h4>
+                    <h4 class="fw-bold mb-0 text-dark">{{ total_planes | default(0) }} <span class="fs-6 fw-normal text-muted">planes</span></h4>
                 </div>
             </div>
             <div class="col-md-6">
@@ -60,7 +59,7 @@
             </div>
         </div>
         <p class="text-muted small mt-2 mb-0">
-            <i class="fa-solid fa-info-circle me-1"></i> Programa Metabolismo: 3 planes. Los ingresos de arriba van sin IVA y ya descuentan los descuentos concedidos.
+            <i class="fa-solid fa-info-circle me-1"></i> Los ingresos de arriba se calculan sin IVA y ya descuentan las rebajas concedidas.
         </p>
     </div>
 </div>
@@ -93,29 +92,16 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td>Dra. Romina</td>
-                        <td>Consulta metabólica</td>
-                        <td class="text-center">9</td>
-                        <td class="text-end fw-bold">₲ 5.400.000</td>
-                    </tr>
-                    <tr>
-                        <td>Nutricionista</td>
-                        <td>Consulta nutricional</td>
-                        <td class="text-center">9</td>
-                        <td class="text-end fw-bold">₲ 2.700.000</td>
-                    </tr>
-                    <tr>
-                        <td>Dentista</td>
-                        <td>Consulta odontológica</td>
-                        <td class="text-center">3</td>
-                        <td class="text-end fw-bold">₲ 900.000</td>
+                        <td colspan="4" class="text-center py-4 text-muted">No hay registros de profesionales para este período.</td>
                     </tr>
                 {% endif %}
             </tbody>
             <tfoot class="table-light fw-bold">
                 <tr>
                     <td colspan="3">Total</td>
-                    <td class="text-end text-primary">₲ 9.000.000</td>
+                    <td class="text-end text-primary">
+                        ₲ {{ "{:,.0f}".format(valor_por_profesional | sum(attribute='valor') if valor_por_profesional else 0).replace(',', '.') }}
+                    </td>
                 </tr>
             </tfoot>
         </table>
