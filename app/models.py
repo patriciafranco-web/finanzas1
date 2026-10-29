@@ -1,6 +1,7 @@
 from app import db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 class User(db.Model, UserMixin):
     __tablename__ = 'user'
@@ -135,7 +136,7 @@ class PrestacionServicio(db.Model):
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=True)
     cliente = db.relationship('Cliente', backref='prestaciones')
 
-# --- NUEVOS MODELOS PARA PAQUETES / PLANES Y CÁLCULOS DE VENTAS ---
+# --- MODELOS PARA PAQUETES / PLANES Y CÁLCULOS DE VENTAS ---
 
 class Paquete(db.Model):
     __tablename__ = 'paquete'
@@ -209,3 +210,16 @@ class CuotaVenta(db.Model):
     vencimiento_label = db.Column(db.String(50), nullable=False)  # Ej: "Día de la venta", "1 mes después"
     valor = db.Column(db.Float, nullable=False)
     estado = db.Column(db.String(20), default='Pendiente')
+
+# --- NUEVO MODELO PARA EL CONTROL DE BLOQUEOS Y CIERRES DE PERÍODOS ---
+
+class BloqueoPeriodo(db.Model):
+    __tablename__ = 'bloqueo_periodo'
+    id = db.Column(db.Integer, primary_key=True)
+    periodo = db.Column(db.String(50), nullable=False)  # Ej: "Octubre 2026"
+    cuenta_id = db.Column(db.Integer, db.ForeignKey('cuenta.id'), nullable=True)  # Null = Todas las cuentas
+    cuenta = db.relationship('Cuenta', backref='bloqueos')
+    fecha_bloqueo = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    usuario = db.Column(db.String(100), nullable=False)
+    estado = db.Column(db.String(20), default='Bloqueado')  # Bloqueado / Liberado
+    motivo_desbloqueo = db.Column(db.Text, nullable=True)
