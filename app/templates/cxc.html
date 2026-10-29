@@ -1,3 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2>Cuentas por Cobrar (CxC)</h2>
+        <p class="text-muted mb-0">Gestión de cuotas pendientes, cobros multimoneda y descuentos autorizados</p>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Fecha Emisión</th>
+                    <th>Concepto</th>
+                    <th>Cliente / Paciente</th>
+                    <th>Vencimiento</th>
+                    <th>Moneda</th>
+                    <th>Monto</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for x in cxc_list %}
+                <tr>
+                    <td>{{ x.fecha_emision.strftime('%d/%m/%Y') if x.fecha_emision else '-' }}</td>
+                    <td class="fw-bold">{{ x.concepto }}</td>
+                    <td>{{ x.cliente.nombre if x.cliente else 'Particular' }}</td>
+                    <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}</td>
+                    <td>{{ x.moneda }}</td>
+                    <td class="fw-bold text-danger">₲ {{ "{:,.0f}".format(x.monto or 0).replace(',', '.') }}</td>
+                    <td>
+                        {% if x.estado == 'Pagado' %}
+                        <span class="badge bg-success">Pagado</span>
+                        {% else %}
+                        <span class="badge bg-warning text-dark">Pendiente</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if x.estado != 'Pagado' %}
+                        <button class="btn btn-sm btn-success fw-bold" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#modalRegistrarCobro"
+                                data-id="{{ x.id }}"
+                                data-concepto="{{ x.concepto }}"
+                                data-vencimiento="{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}"
+                                data-saldo="{{ x.monto }}"
+                                onclick="llenarModalCobro(this)">
+                            <i class="fas fa-hand-holding-usd me-1"></i> Cobrar
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center py-4 text-muted">No hay cuentas por cobrar registradas.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <!-- Modal Registrar Cobro Avanzado (Multimoneda y Descuento) -->
 <div class="modal fade" id="modalRegistrarCobro" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -85,6 +148,16 @@
 </div>
 
 <script>
+function llenarModalCobro(button) {
+    document.getElementById('cobroCxcId').value = button.getAttribute('data-id');
+    document.getElementById('lblCobroConcepto').innerText = button.getAttribute('data-concepto');
+    document.getElementById('lblCobroVencimiento').innerText = button.getAttribute('data-vencimiento');
+    let saldo = parseFloat(button.getAttribute('data-saldo')) || 0;
+    document.getElementById('lblCobroSaldo').innerText = '₲ ' + saldo.toLocaleString('es-PY', {maximumFractionDigits: 0});
+    document.getElementById('inputMontoRecibido').value = saldo;
+    calcularEquivalenteCobro();
+}
+
 function toggleMonedaCobro(select) {
     let cotiz = document.getElementById('inputCotizacion');
     if(select.value === 'PYG') {
@@ -92,7 +165,7 @@ function toggleMonedaCobro(select) {
         cotiz.readOnly = true;
     } else {
         cotiz.readOnly = false;
-        cotiz.value = select.value === 'USD' ? 7500 : 1400; // Referencial
+        cotiz.value = select.value === 'USD' ? 7500 : 1400; 
     }
     calcularEquivalenteCobro();
 }
@@ -104,3 +177,4 @@ function calcularEquivalenteCobro() {
     document.getElementById('lblEquivalenteGs').innerText = totalGs.toLocaleString('es-PY', {maximumFractionDigits: 0});
 }
 </script>
+{% endblock %}
