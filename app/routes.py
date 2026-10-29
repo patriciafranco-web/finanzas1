@@ -195,7 +195,7 @@ def agregar_venta_completa():
         tarifa_pasarela = precio_total * 0.033 if 'Crédito' in forma_pago else 0.0
         costo_servicios = sum(item.costo_total_item for item in paquete.items)
         margen_contribucion = precio_total - iva - tarifa_pasarela - costo_servicios
-        costo_fijo_plan = 9428.013  
+        costo_fijo_plan = 0.0  
         ganancia_plan = margen_contribucion - costo_fijo_plan
         
         saldo = precio_total - monto_pagado
@@ -260,6 +260,7 @@ def agregar_venta_completa():
             ))
             
         db.session.commit()
+        flash('Venta registrada exitosamente con generación de cuotas.', 'success')
         
     return redirect(url_for('main.ventas_vista'))
 
@@ -405,6 +406,7 @@ def agregar_paquete():
             ))
             
     db.session.commit()
+    flash('Plan o paquete creado exitosamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-paquete/<int:id>', methods=['POST'])
@@ -413,6 +415,7 @@ def eliminar_paquete(id):
     p = Paquete.query.get_or_404(id)
     db.session.delete(p)
     db.session.commit()
+    flash('Plan o paquete eliminado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/cuentas-por-cobrar')
@@ -472,6 +475,7 @@ def agregar_prestacion():
                 estado='Pendiente'
             ))
             db.session.commit()
+            flash('Prestación médica registrada con éxito.', 'success')
             
     return redirect(url_for('main.honorarios'))
 
@@ -481,6 +485,7 @@ def eliminar_prestacion(id):
     p = PrestacionServicio.query.get_or_404(id)
     db.session.delete(p)
     db.session.commit()
+    flash('Prestación eliminada correctamente.', 'success')
     return redirect(url_for('main.honorarios'))
 
 @bp.route('/flujo-proyectado')
@@ -524,6 +529,7 @@ def agregar_transaccion():
             observacion=observacion
         ))
         db.session.commit()
+        flash('Transacción agregada con éxito.', 'success')
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/editar-transaccion/<int:id>', methods=['POST'])
@@ -543,6 +549,7 @@ def editar_transaccion(id):
         t.fecha = datetime.strptime(request.form.get('fecha'), '%Y-%m-%d')
     t.observacion = request.form.get('observacion', '')
     db.session.commit()
+    flash('Transacción actualizada correctamente.', 'success')
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/eliminar-transaccion/<int:id>', methods=['POST'])
@@ -551,6 +558,7 @@ def eliminar_transaccion(id):
     t = Transaccion.query.get_or_404(id)
     db.session.delete(t)
     db.session.commit()
+    flash('Transacción eliminada correctamente.', 'success')
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/agregar-cuenta', methods=['POST'])
@@ -563,6 +571,7 @@ def agregar_cuenta():
     color = request.form.get('color', '#17b978')
     db.session.add(Cuenta(nombre=nombre, tipo_cuenta=tipo_cuenta, moneda=moneda, saldo_inicial=saldo_inicial, color=color))
     db.session.commit()
+    flash('Cuenta creada con éxito.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-cuenta/<int:id>', methods=['POST'])
@@ -571,6 +580,7 @@ def eliminar_cuenta(id):
     c = Cuenta.query.get_or_404(id)
     db.session.delete(c)
     db.session.commit()
+    flash('Cuenta eliminada correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-cliente', methods=['POST'])
@@ -582,6 +592,7 @@ def agregar_cliente():
     email = request.form.get('email')
     db.session.add(Cliente(nombre=nombre, documento=documento, telefono=telefono, email=email))
     db.session.commit()
+    flash('Cliente registrado exitosamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-cliente-ajax', methods=['POST'])
@@ -602,6 +613,7 @@ def eliminar_cliente(id):
     cl = Cliente.query.get_or_404(id)
     db.session.delete(cl)
     db.session.commit()
+    flash('Cliente eliminado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-medico', methods=['POST'])
@@ -613,6 +625,7 @@ def agregar_medico():
     porcentaje_clinica = float(request.form.get('porcentaje_clinica') or 30)
     db.session.add(Medico(nombre=nombre, especialidad=especialidad, porcentaje_medico=porcentaje_medico, porcentaje_clinica=porcentaje_clinica))
     db.session.commit()
+    flash('Profesional médico agregado con éxito.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-medico/<int:id>', methods=['POST'])
@@ -621,6 +634,7 @@ def eliminar_medico(id):
     m = Medico.query.get_or_404(id)
     db.session.delete(m)
     db.session.commit()
+    flash('Profesional eliminado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-servicio', methods=['POST'])
@@ -647,6 +661,7 @@ def agregar_servicio():
         activo=True
     ))
     db.session.commit()
+    flash('Servicio registrado exitosamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-servicio/<int:id>', methods=['POST'])
@@ -655,6 +670,7 @@ def eliminar_servicio(id):
     s = Servicio.query.get_or_404(id)
     db.session.delete(s)
     db.session.commit()
+    flash('Servicio eliminado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-cxc', methods=['POST'])
@@ -678,6 +694,7 @@ def agregar_cxc():
         estado='Pendiente'
     ))
     db.session.commit()
+    flash('Cuenta por cobrar agregada con éxito.', 'success')
     return redirect(url_for('main.cxc_vista'))
 
 @bp.route('/eliminar-cxc/<int:id>', methods=['POST'])
@@ -686,6 +703,7 @@ def eliminar_cxc(id):
     x = CuentaPorCobrar.query.get_or_404(id)
     db.session.delete(x)
     db.session.commit()
+    flash('Cuenta por cobrar eliminada correctamente.', 'success')
     return redirect(url_for('main.cxc_vista'))
 
 @bp.route('/cobrar-cxc/<int:id>', methods=['POST'])
@@ -707,6 +725,7 @@ def cobrar_cxc(id):
         observacion="Cobro de cuenta por cobrar"
     ))
     db.session.commit()
+    flash('Cobro registrado y transaccion generada con éxito.', 'success')
     return redirect(url_for('main.cxc_vista'))
 
 @bp.route('/agregar-cxp', methods=['POST'])
@@ -732,6 +751,7 @@ def agregar_cxp():
         estado='Pendiente'
     ))
     db.session.commit()
+    flash('Cuenta a pagar agregada con éxito.', 'success')
     return redirect(url_for('main.cxp_vista'))
 
 @bp.route('/eliminar-cxp/<int:id>', methods=['POST'])
@@ -740,6 +760,7 @@ def eliminar_cxp(id):
     p = CuentaPorPagar.query.get_or_404(id)
     db.session.delete(p)
     db.session.commit()
+    flash('Cuenta a pagar eliminada correctamente.', 'success')
     return redirect(url_for('main.cxp_vista'))
 
 @bp.route('/pagar-cxp/<int:id>', methods=['POST'])
@@ -761,6 +782,7 @@ def pagar_cxp(id):
         observacion="Pago de cuenta a pagar"
     ))
     db.session.commit()
+    flash('Pago registrado con éxito.', 'success')
     return redirect(url_for('main.cxp_vista'))
 
 @bp.route('/agregar-categoria', methods=['POST'])
@@ -770,6 +792,7 @@ def agregar_categoria():
     tipo = request.form.get('tipo')
     db.session.add(Categoria(nombre=nombre, tipo=tipo))
     db.session.commit()
+    flash('Categoría creada correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-centro-costo', methods=['POST'])
@@ -778,6 +801,7 @@ def agregar_centro_costo():
     nombre = request.form.get('nombre')
     db.session.add(CentroCosto(nombre=nombre))
     db.session.commit()
+    flash('Centro de costo agregado con éxito.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/exportar-excel')
