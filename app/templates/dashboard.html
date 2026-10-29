@@ -5,14 +5,44 @@
         <h2>Finanzas</h2>
         <p class="text-muted mb-0">Administra tus finanzas y control de caja multimoneda</p>
     </div>
-    <div>
-        <span class="badge bg-success p-2 me-2">PYG ₲ {{ "{:,.0f}".format(saldos.PYG).replace(',', '.') }}</span>
-        <span class="badge bg-primary p-2 me-2">USD $ {{ "{:,.2f}".format(saldos.USD) }}</span>
-        <span class="badge bg-warning text-dark p-2">BRL R$ {{ "{:,.2f}".format(saldos.BRL) }}</span>
+    <div class="d-flex align-items-center gap-3">
+        <!-- Estado del Período según Manual -->
+        {% if bloqueos_activos %}
+        <span class="badge bg-danger p-2 fs-6"><i class="fa-solid fa-lock me-1"></i> Octubre 2026 - Bloqueado</span>
+        {% else %}
+        <span class="badge bg-success p-2 fs-6"><i class="fa-solid fa-lock-open me-1"></i> Octubre 2026 - Abierto</span>
+        {% endif %}
+
+        <div>
+            <span class="badge bg-success p-2 me-2">PYG ₲ {{ "{:,.0f}".format(saldos.PYG).replace(',', '.') }}</span>
+            <span class="badge bg-primary p-2 me-2">USD $ {{ "{:,.2f}".format(saldos.USD) }}</span>
+            <span class="badge bg-warning text-dark p-2">BRL R$ {{ "{:,.2f}".format(saldos.BRL) }}</span>
+        </div>
     </div>
 </div>
 
-<!-- Filtros y Botón de Transferencia Estilo Referencia -->
+<!-- Franja amarilla de advertencia si hay período bloqueado -->
+{% if bloqueos_activos %}
+<div class="alert alert-warning border-warning d-flex align-items-center justify-content-between mb-3 shadow-sm" role="alert">
+    <div>
+        <i class="fa-solid fa-triangle-exclamation text-warning me-2 fs-5"></i>
+        <strong>Período bloqueado:</strong> No se permiten alteraciones: nuevas transacciones, ediciones, anulaciones ni importaciones con fecha de este período.
+    </div>
+    <a href="{{ url_for('main.bloqueos_vista') }}" class="btn btn-outline-dark btn-sm fw-bold">Reabrir período (solo administrador)</a>
+</div>
+{% endif %}
+
+<!-- Pestañas de Navegación Estilo PDF -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link active fw-bold" href="{{ url_for('main.dashboard') }}">Transacciones</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link text-muted" href="{{ url_for('main.cadastros') }}">Cadastros & Cuentas</a>
+    </li>
+</ul>
+
+<!-- Filtros y Botones de Acción del Manual -->
 <form method="GET" action="{{ url_for('main.dashboard') }}" class="card shadow-sm mb-3 p-3 bg-light" id="filterForm">
     <div class="row g-2 align-items-center">
         <div class="col-md-3">
@@ -65,9 +95,19 @@
         <div class="col-md-6 text-end">
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print();"><i class="fa-solid fa-file-pdf text-danger me-1"></i> PDF</button>
             <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-file-excel me-1"></i> Excel</a>
-            <!-- BOTÓN DE TRANSFERENCIA ENTRE CUENTAS -->
+            
+            <!-- Botón Plantilla Excel -->
+            <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-info btn-sm"><i class="fa-solid fa-file-arrow-down me-1"></i> Plantilla</a>
+            
+            <!-- Botón Importar -->
+            <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#modalImportar"><i class="fa-solid fa-file-arrow-up me-1"></i> Importar</button>
+            
+            <!-- Botón Bloquear Período / Ir a Bloqueos -->
+            <a href="{{ url_for('main.bloqueos_vista') }}" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-lock me-1"></i> Bloqueos</a>
+
+            <!-- Transferencia y Nueva Transacción -->
             <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalTransferencia"><i class="fa-solid fa-right-left me-1"></i> Transferência</button>
-            <button type="button" class="btn btn-primary btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#modalTransaccion"><i class="fa-solid fa-plus me-1"></i> Nueva Transacción</button>
+            <button type="button" class="btn btn-primary btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#modalTransaccion" {% if bloqueos_activos %}disabled title="Período bloqueado"{% endif %}><i class="fa-solid fa-plus me-1"></i> Nueva Transacción</button>
         </div>
     </div>
 </form>
@@ -109,8 +149,8 @@
                         ₲ {{ "{:,.0f}".format(t.saldo_resultante).replace(',', '.') }}
                     </td>
                     <td>
-                        <form action="{{ url_for('main.eliminar_transaccion', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar transacción?');">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                        <form action="{{ url_for('main.eliminar_transaccion', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Está seguro de que desea excluir esta transacción? Esta acción no se puede deshacer.');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir" {% if bloqueos_activos %}disabled{% endif %}><i class="fa-solid fa-trash"></i></button>
                         </form>
                     </td>
                 </tr>
@@ -122,7 +162,39 @@
     </div>
 </div>
 
-<!-- MODAL NUEVA TRANSACCIÓN (Con formato Gs y Divisas) -->
+<!-- MODAL IMPORTAR TRANSACCIONES -->
+<div class="modal fade" id="modalImportar" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold"><i class="fa-solid fa-file-excel me-2"></i> Importar transacciones desde Excel</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ol class="mb-4">
+                    <li class="fw-bold mb-1">Descargar la plantilla oficial:</li>
+                    <p class="text-muted small mb-2">Complete el modelo con una fila por transacción y no cambie los nombres de las columnas.</p>
+                    <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-sm btn-outline-success mb-3"><i class="fa-solid fa-download me-1"></i> Descargar plantilla (.xlsx)</a>
+
+                    <li class="fw-bold mb-1">Subir el archivo completado:</li>
+                    <div class="input-group mb-3">
+                        <input type="file" class="form-control" id="inputGroupFile02">
+                        <label class="input-group-text" for="inputGroupFile02">Examinar</label>
+                    </div>
+
+                    <li class="fw-bold mb-1">Revisar antes de importar:</li>
+                    <p class="text-muted small mb-0">El sistema validará cuentas, categorías y fechas bloqueadas automáticamente antes de procesar los datos.</p>
+                </ol>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="alert('Funcionalidad de validación previa activa.');">Validar e Importar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NUEVA TRANSACCIÓN -->
 <div class="modal fade" id="modalTransaccion" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -132,7 +204,6 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- Selector Tipo Estilo Botones -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tipo de Transacción</label>
                         <input type="hidden" name="tipo" id="inputTipoTransaccion" value="Ingreso">
@@ -166,31 +237,6 @@
                             <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
                             {% endfor %}
                         </select>
-                    </div>
-
-                    <!-- OPCIÓN DE PAGO EN DIVISAS / DÓLARES -->
-                    <div class="p-3 bg-light rounded border mb-3">
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" name="usar_divisa" id="checkDivisaNueva" onchange="toggleDivisaNueva(this)">
-                            <label class="form-check-label fw-bold text-primary" for="checkDivisaNueva">¿Paciente paga en otra moneda (ej. Dólares)?</label>
-                        </div>
-                        <div id="camposDivisaNueva" style="display: none;">
-                            <div class="mb-2">
-                                <label class="form-label">Monto recibido en Dólares / Divisa</label>
-                                <input type="number" step="any" class="form-control" name="monto_divisa" id="montoDivisaNueva" placeholder="Ej: 100" oninput="calcularCambioNueva()">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label">Cotización del Día (Gs. por 1 USD)</label>
-                                <input type="number" step="any" class="form-control" name="cotizacion" id="cotizacionNueva" placeholder="Ej: 7500" oninput="calcularCambioNueva()">
-                            </div>
-                            
-                            <!-- CAJA DE CÁLCULO EN VIVO -->
-                            <div id="resultadoCalculoCambio" class="alert alert-info py-2 px-3 mt-2 mb-0 small" style="display: none;">
-                                <strong>Cálculo en vivo:</strong><br>
-                                Equivalente total: <span id="calcEquivalente">0</span> Gs.<br>
-                                <span id="calcDiferenciaTexto" class="fw-bold"></span>
-                            </div>
-                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -257,7 +303,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Realizar Transferencia</button>
+                    <button type="button" class="btn btn-primary">Realizar Transferencia</button>
                 </div>
             </form>
         </div>
@@ -300,7 +346,6 @@ function formatearMontoGs(input) {
         document.getElementById('inputMontoTransfReal').value = numero;
     } else {
         document.getElementById('inputMontoTransaccionReal').value = numero;
-        calcularCambioNueva();
     }
 }
 
@@ -324,46 +369,6 @@ function setTipoTransaccion(tipo) {
     } else {
         btnIngreso.className = 'btn btn-outline-success';
         btnSalida.className = 'btn btn-danger active';
-    }
-}
-
-function toggleDivisaNueva(checkbox) {
-    var campos = document.getElementById('camposDivisaNueva');
-    campos.style.display = checkbox.checked ? 'block' : 'none';
-    if (!checkbox.checked) {
-        document.getElementById('montoDivisaNueva').value = '';
-        document.getElementById('cotizacionNueva').value = '';
-        document.getElementById('resultadoCalculoCambio').style.display = 'none';
-    } else {
-        calcularCambioNueva();
-    }
-}
-
-function calcularCambioNueva() {
-    var montoServicio = parseFloat(document.getElementById('inputMontoTransaccionReal').value) || 0;
-    var montoDivisa = parseFloat(document.getElementById('montoDivisaNueva').value) || 0;
-    var cotizacion = parseFloat(document.getElementById('cotizacionNueva').value) || 0;
-    var resDiv = document.getElementById('resultadoCalculoCambio');
-    
-    if (montoDivisa > 0 && cotizacion > 0) {
-        var totalGs = montoDivisa * cotizacion;
-        document.getElementById('calcEquivalente').innerText = totalGs.toLocaleString('es-PY', {minimumFractionDigits: 0, maximumFractionDigits: 0});
-        
-        var diffText = document.getElementById('calcDiferenciaTexto');
-        var diferencia = totalGs - montoServicio;
-        if (diferencia > 0) {
-            diffText.innerText = "Ganancia por Cambio estimada: + ₲ " + diferencia.toLocaleString('es-PY', {minimumFractionDigits: 0, maximumFractionDigits: 0});
-            diffText.className = "text-success fw-bold";
-        } else if (diferencia < 0) {
-            diffText.innerText = "Falta cubrir: ₲ " + Math.abs(diferencia).toLocaleString('es-PY', {minimumFractionDigits: 0, maximumFractionDigits: 0});
-            diffText.className = "text-danger fw-bold";
-        } else {
-            diffText.innerText = "¡Monto exacto cubierto!";
-            diffText.className = "text-muted fw-bold";
-        }
-        resDiv.style.display = 'block';
-    } else {
-        resDiv.style.display = 'none';
     }
 }
 </script>
