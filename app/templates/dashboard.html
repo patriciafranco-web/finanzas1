@@ -12,11 +12,6 @@
     </div>
 </div>
 
-<ul class="nav nav-tabs mb-3" role="tablist">
-    <li class="nav-item"><a class="nav-link active fw-bold" href="{{ url_for('main.dashboard') }}">Transacciones</a></li>
-    <li class="nav-item"><a class="nav-link text-dark" href="{{ url_for('main.cadastros') }}">Cadastros & Cuentas</a></li>
-</ul>
-
 <!-- Filtros y Botón de Transferencia Estilo Referencia -->
 <form method="GET" action="{{ url_for('main.dashboard') }}" class="card shadow-sm mb-3 p-3 bg-light" id="filterForm">
     <div class="row g-2 align-items-center">
