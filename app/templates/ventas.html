@@ -1,13 +1,3 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h2>Módulo de Ventas de Planes y Paquetes</h2>
-        <p class="text-muted mb-0">Registro de ventas, formas de pago, cuotas automáticas en CxC y análisis de márgenes</p>
-    </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalVenta"><i class="fa-solid fa-plus me-1"></i> Nueva Venta</button>
-</div>
-
 <div class="card shadow-sm">
     <div class="card-body p-0">
         <table class="table table-hover mb-0 align-middle">
@@ -21,6 +11,7 @@
                     <th>Saldo Pendiente</th>
                     <th>Margen / Ganancia</th>
                     <th>Estado</th>
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -36,165 +27,40 @@
                     <td>
                         {% if v.estado == 'Pagada' %}<span class="badge bg-success">Pagada</span>
                         {% elif v.estado == 'Parcial' %}<span class="badge bg-info text-dark">Parcial</span>
+                        {% elif v.estado == 'Cancelada' %}<span class="badge bg-secondary">Cancelada</span>
                         {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
+                    </td>
+                    <td>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                Acciones
+                            </button>
+                            <ul class="dropdown-menu">
+                                {% if v.estado != 'Pagada' and v.estado != 'Cancelada' %}
+                                <li><a class="dropdown-item text-success" href="{{ url_for('main.cxc_vista') }}"><i class="fa-solid fa-cash-register me-1"></i> Cobrar cuota</a></li>
+                                {% endif %}
+                                
+                                {% if v.estado != 'Cancelada' %}
+                                <li>
+                                    <form action="{{ url_for('main.cancelar_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Desea cancelar esta venta y anular sus cuotas pendientes?');">
+                                        <button type="submit" class="dropdown-item text-warning"><i class="fa-solid fa-ban me-1"></i> Cancelar venta</button>
+                                    </form>
+                                </li>
+                                {% endif %}
+
+                                <li>
+                                    <form action="{{ url_for('main.excluir_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea excluir esta venta? Esta acción no se puede deshacer.');">
+                                        <button type="submit" class="dropdown-item text-danger"><i class="fa-solid fa-trash me-1"></i> Excluir</button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="text-center py-4 text-muted">No hay ventas registradas.</td></tr>
+                <tr><td colspan="9" class="text-center py-4 text-muted">No hay ventas registradas.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
-
-<!-- Modal Nueva Venta (Alineado estrictamente al manual de la clínica) -->
-<div class="modal fade" id="modalVenta" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-cash-register me-2"></i> Registrar Venta de Plan o Paquete</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <!-- Columna Izquierda: Formulario de Venta -->
-                        <div class="col-md-7">
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Cliente / Paciente</label>
-                                <select class="form-select" name="cliente_id" required>
-                                    <option value="">Seleccionar paciente...</option>
-                                    {% for cl in clientes %}
-                                    <option value="{{ cl.id }}">{{ cl.nombre }} ({{ cl.documento or 'S/C' }})</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Plan / Paquete Médico</label>
-                                <select class="form-select" name="paquete_id" id="paqueteSelect" required onchange="actualizarDatosPaquete(this)">
-                                    <option value="">Seleccionar plan o paquete...</option>
-                                    {% for p in paquetes %}
-                                    <option value="{{ p.id }}" data-precio="{{ p.precio }}" data-duracion="{{ p.duracion_meses }}">
-                                        {{ p.nombre }} ({{ p.duracion_meses }} meses) - ₲ {{ "{:,.0f}".format(p.precio).replace(',', '.') }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Forma de Pago</label>
-                                    <select class="form-select" name="forma_pago" required>
-                                        <option value="Efectivo/Transferencia">Efectivo / Transferencia</option>
-                                        <option value="Crédito (local/extranjera)">Crédito (local / extranjera)</option>
-                                        <option value="Débito">Débito</option>
-                                        <option value="PIX">PIX</option>
-                                        <option value="Débito QR">Débito QR</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <label class="form-label fw-bold">Nº de Cuotas</label>
-                                    <input type="number" class="form-control" name="num_cuotas" id="inputCuotas" value="4" min="1" max="12" required>
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <label class="form-label fw-bold">Entrada (Gs.)</label>
-                                    <input type="number" step="any" class="form-control" name="monto_pagado" id="inputEntrada" value="0">
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Cuenta de Ingreso (Caja / Banco)</label>
-                                <select class="form-select" name="cuenta_id" required>
-                                    <option value="">Seleccionar cuenta...</option>
-                                    {% for c in cuentas %}
-                                    <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-
-                            <div class="card bg-light border p-3 mb-3">
-                                <h6 class="fw-bold text-secondary mb-2"><i class="fas fa-calendar-alt me-1"></i> Cuotas generadas en Cuentas por Cobrar (CxC)</h6>
-                                <p class="text-muted small mb-0">El sistema generará automáticamente los vencimientos mensuales programados.</p>
-                            </div>
-                        </div>
-
-                        <!-- Columna Derecha: Tarjeta de Resultados y Márgenes -->
-                        <div class="col-md-5">
-                            <div class="card shadow-sm border bg-light h-100">
-                                <div class="card-header bg-white fw-bold text-dark">
-                                    <i class="fas fa-chart-line me-1 text-primary"></i> Resultado de la Venta
-                                </div>
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Facturación:</span>
-                                        <strong id="lblFacturacion">₲ 0</strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2 text-danger">
-                                        <span>(-) IVA (precio ÷ 11):</span>
-                                        <strong id="lblIva">₲ 0</strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2 text-danger">
-                                        <span>(-) Tarifa de tarjeta (3,3%):</span>
-                                        <strong id="lblTarifa">₲ 0</strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2 text-danger">
-                                        <span>(-) Costo de los servicios:</span>
-                                        <strong id="lblCostoServicios">₲ 0</strong>
-                                    </div>
-                                    <hr>
-                                    <div class="d-flex justify-content-between mb-2 fw-bold">
-                                        <span>Margen de contribución:</span>
-                                        <span id="lblMargenContribucion" class="text-primary">₲ 0</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2 text-danger small">
-                                        <span>(-) Costo fijo por plan:</span>
-                                        <strong id="lblCostoFijo">₲ 9.428.013</strong>
-                                    </div>
-                                    <hr>
-                                    <div class="p-3 rounded bg-success text-white text-center mt-3">
-                                        <small class="d-block uppercase tracking-wider opacity-75">Ganancia por plan</small>
-                                        <h3 class="fw-bold mb-0" id="lblGananciaPlan">₲ 0</h3>
-                                        <small id="lblPorcentajeMargen" class="opacity-75">0,0% del precio</small>
-                                    </div>
-                                    <p class="text-muted small mt-3 mb-0">
-                                        <i class="fas fa-info-circle me-1"></i> Estos valores se guardan en la venta con el costo, el IVA y la tarifa de ese día. Si el precio o el costo cambian después, esta venta no se modifica.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary fw-bold px-4">Guardar Venta</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<script>
-function actualizarDatosPaquete(select) {
-    let opt = select.options[select.selectedIndex];
-    let precio = parseFloat(opt.getAttribute('data-precio')) || 0;
-    
-    // Cálculos dinámicos en tiempo real para la tarjeta lateral
-    let iva = precio / 11;
-    let tarifa = precio * 0.033; // Estimación tarjeta crédito
-    let costoServicios = precio * 0.25; // Referencial de costos del paquete
-    let margenContribucion = precio - iva - tarifa - costoServicios;
-    let costoFijoPlan = 9428013; // Prorrateo fijo estándar
-    let gananciaPlan = margenContribucion - costoFijoPlan;
-    let porcMargen = precio > 0 ? (gananciaPlan / precio) * 100 : 0;
-
-    document.getElementById('lblFacturacion').innerText = '₲ ' + precio.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblIva').innerText = '₲ ' + iva.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblTarifa').innerText = '₲ ' + tarifa.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblCostoServicios').innerText = '₲ ' + costoServicios.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblMargenContribucion').innerText = '₲ ' + margenContribucion.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblGananciaPlan').innerText = '₲ ' + gananciaPlan.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblPorcentajeMargen').innerText = porcMargen.toFixed(1) + '% del precio';
-}
-</script>
-{% endblock %}
