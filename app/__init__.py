@@ -12,8 +12,6 @@ def create_app():
     app.config['SECRET_KEY'] = 'clinica_finanzas_secret_key_2026'
     
     # --- CONFIGURACIÓN DE DISCO PERSISTENTE (RENDER / LOCAL) ---
-    # Si existe el disco persistente de Render (/var/data), guardamos la base de datos ahí.
-    # De lo contrario, usamos la ruta local habitual de Flask (app.instance_path).
     if os.path.exists('/var/data'):
         basedir = '/var/data'
     else:
@@ -30,7 +28,7 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
-    from app.models import User, Cuenta, Cliente, Medico, Servicio, Categoria, CentroCosto, Transaccion, CuentaPorCobrar, CuentaPorPagar, PrestacionServicio, Venta, DetalleVenta
+    from app.models import User, Cuenta, Cliente, Medico, Servicio, Categoria, CentroCosto, Transaccion, CuentaPorCobrar, CuentaPorPagar, PrestacionServicio, Venta, DetalleVenta, Paquete, PaqueteItem, CuotaVenta
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -39,7 +37,7 @@ def create_app():
     from app.routes import bp
     app.register_blueprint(bp)
 
-    # Verificar si la base de datos necesita actualización de esquema
+    # Verificar si la base de datos necesita actualización de esquema para el módulo avanzado
     if os.path.exists(db_path):
         try:
             conn = sqlite3.connect(db_path)
@@ -47,8 +45,8 @@ def create_app():
             cursor.execute("PRAGMA table_info(servicio);")
             columns = [col[1] for col in cursor.fetchall()]
             conn.close()
-            # Si la tabla existe pero no tiene la columna 'activo', se limpia la BD para recrearla con la nueva estructura
-            if columns and 'activo' not in columns:
+            # Si la tabla existe pero le falta la columna 'costo_unitario', recreamos la BD limpiamente para soportar la nueva estructura
+            if columns and 'costo_unitario' not in columns:
                 os.remove(db_path)
         except Exception:
             pass
@@ -71,9 +69,8 @@ def create_app():
 
         # Crear un servicio de prueba si no existe
         if not Servicio.query.first():
-            db.session.add(Servicio(codigo='SRV01', nombre='Consulta General', descripcion='Consulta médica general', moneda='PYG', precio=150000, activo=True))
+            db.session.add(Servicio(codigo='SRV01', nombre='Consulta General', descripcion='Consulta médica general', moneda='PYG', precio=150000, costo_unitario=100000, activo=True))
             
         db.session.commit()
 
     return app
-
