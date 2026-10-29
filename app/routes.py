@@ -32,20 +32,16 @@ def logout():
 @bp.route('/')
 @login_required
 def pyg():
-    # Estado de Resultados Gerencial (PyG) según manual
-    ventas = Venta.query.filter_by(estado='Pagada').all() # O todas las activas
+    ventas = Venta.query.filter_by(estado='Pagada').all()
     total_ingresos_netos = sum((v.total - v.iva) for v in ventas)
-    
     costo_total_servicios = sum(v.costo_servicios for v in ventas)
     
-    # Costos fijos del mes desde Cuentas a Pagar con categoría de costo fijo
     cxp_fijos = CuentaPorPagar.query.all()
     total_costos_fijos = sum(p.monto for p in cxp_fijos if p.concepto and 'fijo' in p.concepto.lower())
     
     total_egresos_costos = costo_total_servicios + total_costos_fijos
     utilidad_neta = total_ingresos_netos - total_egresos_costos
     
-    # Desglose de planes vendidos y valor por profesional
     total_planes = len(ventas)
     valor_por_profesional = []
     medicos = Medico.query.all()
@@ -310,8 +306,9 @@ def cancelar_venta(id):
 @login_required
 def excluir_venta(id):
     v = Venta.query.get_or_404(id)
+    # Regla: No se puede excluir si tiene cobros registrados
     if v.pagado > 0:
-        flash(f'No se puede excluir la venta #{v.id} porque tiene cobros registrados. Debe anular los cobros primero o usar "Cancelar venta".', 'danger')
+        flash(f'No se puede excluir la venta #{v.id} porque tiene cobros registrados. Para dejarla sin efecto conserve el historial usando "Cancelar venta".', 'danger')
     else:
         for cuota in v.cuotas:
             cxc_rel = CuentaPorCobrar.query.filter_by(concepto=f"Cuota {cuota.numero_cuota} - {v.paquete.nombre if v.paquete else 'Plan'} (Venta #{v.id})").first()
@@ -526,10 +523,8 @@ def flujo_proyectado():
     total_cxc = sum(x.monto for x in cxc_pendientes)
     total_cxp = sum(p.monto for p in cxp_pendientes)
     
-    # Simulación de distribución temporal del costo de servicios (25% por mes durante 4 meses)
     ventas_activas = Venta.query.filter(Venta.estado != 'Cancelada').all()
     distribucion_costos = sum((v.costo_servicios * 0.25) for v in ventas_activas)
-    
     saldo_proyectado = total_cxc - (total_cxp + distribucion_costos)
     
     return render_template('flujo_proyectado.html', 
@@ -599,9 +594,10 @@ def editar_transaccion(id):
 @login_required
 def eliminar_transaccion(id):
     t = Transaccion.query.get_or_404(id)
+    # Validar si el período o cuenta está bloqueado (aquí se puede agregar validación adicional)
     db.session.delete(t)
     db.session.commit()
-    flash('Transacción eliminada correctamente.', 'success')
+    flash('Transacción excluida correctamente.', 'success')
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/agregar-cuenta', methods=['POST'])
@@ -615,6 +611,19 @@ def agregar_cuenta():
     db.session.add(Cuenta(nombre=nombre, tipo_cuenta=tipo_cuenta, moneda=moneda, saldo_inicial=saldo_inicial, color=color))
     db.session.commit()
     flash('Cuenta creada con éxito.', 'success')
+    return redirect(url_for('main.cadastros'))
+
+@bp.route('/editar-cuenta/<int:id>', methods=['POST'])
+@login_required
+def editar_cuenta(id):
+    c = Cuenta.query.get_or_404(id)
+    c.nombre = request.form.get('nombre')
+    c.tipo_cuenta = request.form.get('tipo_cuenta')
+    # Si no tiene transacciones, permitir cambiar moneda
+    if not c.transacciones:
+        c.moneda = request.form.get('moneda', c.moneda)
+    db.session.commit()
+    flash('Cuenta actualizada correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-cuenta/<int:id>', methods=['POST'])
@@ -636,6 +645,18 @@ def agregar_cliente():
     db.session.add(Cliente(nombre=nombre, documento=documento, telefono=telefono, email=email))
     db.session.commit()
     flash('Cliente registrado exitosamente.', 'success')
+    return redirect(url_for('main.cadastros'))
+
+@bp.route('/editar-cliente/<int:id>', methods=['POST'])
+@login_required
+def editar_cliente(id):
+    cl = Cliente.query.get_or_404(id)
+    cl.nombre = request.form.get('nombre')
+    cl.documento = request.form.get('documento')
+    cl.telefono = request.form.get('telefono')
+    cl.email = request.form.get('email')
+    db.session.commit()
+    flash('Cliente actualizado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-cliente-ajax', methods=['POST'])
