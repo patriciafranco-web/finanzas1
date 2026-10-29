@@ -177,7 +177,7 @@
                                     </div>
                                     <div class="d-flex justify-content-between mb-2 text-danger small">
                                         <span>(-) Costo fijo por plan:</span>
-                                        <strong id="lblCostoFijo">₲ 9.428.013</strong>
+                                        <strong id="lblCostoFijo">₲ 0</strong>
                                     </div>
                                     <hr>
                                     <div class="p-3 rounded bg-success text-white text-center mt-3">
@@ -211,7 +211,7 @@ function actualizarDatosPaquete(select) {
     let tarifa = precio * 0.033;
     let costoServicios = precio * 0.25;
     let margenContribucion = precio - iva - tarifa - costoServicios;
-    let costoFijoPlan = 9428013;
+    let costoFijoPlan = 0; // Configurado en 0 para que la gestora cargue los valores reales
     let gananciaPlan = margenContribucion - costoFijoPlan;
     let porcMargen = precio > 0 ? (gananciaPlan / precio) * 100 : 0;
 
@@ -220,6 +220,7 @@ function actualizarDatosPaquete(select) {
     document.getElementById('lblTarifa').innerText = '₲ ' + tarifa.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblCostoServicios').innerText = '₲ ' + costoServicios.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblMargenContribucion').innerText = '₲ ' + margenContribucion.toLocaleString('es-PY', {maximumFractionDigits: 0});
+    document.getElementById('lblCostoFijo').innerText = '₲ ' + costoFijoPlan.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblGananciaPlan').innerText = '₲ ' + gananciaPlan.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblPorcentajeMargen').innerText = porcMargen.toFixed(1) + '% del precio';
 }
