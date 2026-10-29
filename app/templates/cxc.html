@@ -1,123 +1,68 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h2>Módulo de Ventas</h2>
-        <p class="text-muted mb-0">Flujo de venta de servicios, cuentas por cobrar y transacciones</p>
-    </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalVenta"><i class="fa-solid fa-plus me-1"></i> Nueva Venta</button>
-</div>
-
-<div class="card shadow-sm">
-    <div class="card-body p-0">
-        <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th>Total</th>
-                    <th>Pagado</th>
-                    <th>Saldo Pendiente</th>
-                    <th>Estado</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for v in ventas %}
-                <tr>
-                    <td>{{ v.fecha.strftime('%d/%m/%Y') }}</td>
-                    <td class="fw-bold">{{ v.cliente.nombre if v.cliente else 'Particular' }}</td>
-                    <td class="fw-bold">₲ {{ "{:,.2f}".format(v.total) }}</td>
-                    <td class="text-success fw-bold">₲ {{ "{:,.2f}".format(v.pagado) }}</td>
-                    <td class="text-danger fw-bold">₲ {{ "{:,.2f}".format(v.saldo) }}</td>
-                    <td>
-                        {% if v.estado == 'Pagada' %}<span class="badge bg-success">Pagada</span>
-                        {% elif v.estado == 'Parcial' %}<span class="badge bg-info text-dark">Parcial</span>
-                        {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="6" class="text-center py-4 text-muted">No hay ventas registradas.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Modal Nueva Venta -->
-<div class="modal fade" id="modalVenta" tabindex="-1">
+<!-- Modal Registrar Cobro Avanzado (Multimoneda y Descuento) -->
+<div class="modal fade" id="modalRegistrarCobro" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Registrar Nueva Venta</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <form action="{{ url_for('main.registrar_cobro_avanzado') }}" method="POST">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-hand-holding-usd me-2"></i> Registrar Cobro de Cuota</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- Cliente con Botón + -->
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Cliente / Paciente</label>
-                        <div class="input-group">
-                            <select class="form-select" name="cliente_id" id="clienteSelect">
-                                <option value="">Seleccionar cliente...</option>
-                                {% for cl in clientes %}
-                                <option value="{{ cl.id }}">{{ cl.nombre }}</option>
-                                {% endfor %}
+                    <input type="hidden" name="cxc_id" id="cobroCxcId">
+                    
+                    <div class="alert alert-light border p-3 mb-3">
+                        <div class="row">
+                            <div class="col-md-4"><strong>Concepto:</strong> <span id="lblCobroConcepto">-</span></div>
+                            <div class="col-md-4"><strong>Vencimiento:</strong> <span id="lblCobroVencimiento">-</span></div>
+                            <div class="col-md-4"><strong>Saldo Cuota:</strong> <span id="lblCobroSaldo" class="text-danger fw-bold">-</span></div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Moneda del Cobro</label>
+                            <select class="form-select" name="moneda_cobro" id="monedaCobro" onchange="toggleMonedaCobro(this)">
+                                <option value="PYG">PYG (₲)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="BRL">BRL (R$)</option>
                             </select>
-                            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalNuevoClienteRapido"><i class="fa-solid fa-plus"></i> Nuevo</button>
                         </div>
-                    </div>
-
-                    <!-- Selección de Servicio -->
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Servicio</label>
-                        <select class="form-select" name="servicio_id" id="servicioSelect" required onchange="actualizarPrecioServicio(this)">
-                            <option value="">Buscar servicio por nombre o código...</option>
-                            {% for s in servicios %}
-                            <option value="{{ s.id }}" data-precio="{{ s.precio }}">[{{ s.codigo or 'S/C' }}] {{ s.nombre }} - ₲ {{ "{:,.2f}".format(s.precio) }}</option>
-                            {% endfor %}
-                        </select>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Cotización del Día</label>
+                            <input type="number" step="any" class="form-control" name="cotizacion" id="inputCotizacion" value="1" oninput="calcularEquivalenteCobro()">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Monto Recibido</label>
+                            <input type="number" step="any" class="form-control" name="monto_recibido" id="inputMontoRecibido" required oninput="calcularEquivalenteCobro()">
+                        </div>
                     </div>
 
                     <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Cantidad</label>
-                            <input type="number" class="form-control" name="cantidad" id="inputCantidad" value="1" min="1" oninput="calcularTotalesVenta()">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Descuento Concedido (Opcional)</label>
+                            <input type="number" step="any" class="form-control" name="descuento" value="0" placeholder="0">
+                            <small class="text-muted">Reduce el saldo sin generar dinero recibido.</small>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Precio Unitario</label>
-                            <input type="number" step="any" class="form-control" name="precio_unitario" id="inputPrecio" value="0" oninput="calcularTotalesVenta()">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Descuento</label>
-                            <input type="number" step="any" class="form-control" name="descuento" id="inputDescuento" value="0" oninput="calcularTotalesVenta()">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Motivo del Descuento</label>
+                            <input type="text" class="form-control" name="motivo_descuento" placeholder="Ej: Cortesía institucional">
                         </div>
                     </div>
 
-                    <div class="p-3 bg-light rounded border mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>Subtotal:</span>
-                            <strong id="lblSubtotal">₲ 0.00</strong>
-                        </div>
-                        <div class="d-flex justify-content-between mb-1 text-danger">
-                            <span>Descuento:</span>
-                            <strong id="lblDescuento">₲ 0.00</strong>
-                        </div>
-                        <hr class="my-1">
-                        <div class="d-flex justify-content-between fs-5 fw-bold text-primary">
-                            <span>Total a Pagar:</span>
-                            <span id="lblTotal">₲ 0.00</span>
-                        </div>
-                    </div>
-
-                    <!-- Pagos -->
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Monto Pagado en el Momento</label>
-                            <input type="number" step="any" class="form-control" name="monto_pagado" id="inputPagado" value="0" oninput="calcularTotalesVenta()">
+                            <label class="form-label fw-bold">Forma de Cobro</label>
+                            <select class="form-select" name="forma_cobro" required>
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Transferencia">Transferencia</option>
+                                <option value="Tarjeta de crédito">Tarjeta de crédito</option>
+                                <option value="POS">POS</option>
+                                <option value="PIX">PIX</option>
+                            </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Cuenta de Ingreso</label>
-                            <select class="form-select" name="cuenta_id">
+                            <label class="form-label fw-bold">Cuenta de Baja (Ingreso)</label>
+                            <select class="form-select" name="cuenta_id" required>
                                 <option value="">Seleccionar cuenta...</option>
                                 {% for c in cuentas %}
                                 <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
@@ -126,95 +71,36 @@
                         </div>
                     </div>
 
-                    <div class="alert alert-warning py-2 mb-0">
-                        <small>Falta Cobrar (Generará Cuenta por Cobrar si hay saldo): <strong id="lblSaldo" class="text-danger">₲ 0.00</strong></small>
+                    <div class="alert alert-info py-2 px-3 mt-2 mb-0">
+                        <small><strong>Equivalente calculado en Gs.:</strong> <span id="lblEquivalenteGs">0</span> Gs.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Confirmar Venta</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4">Confirmar Cobro</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Modal Rápido para Nuevo Cliente -->
-<div class="modal fade" id="modalNuevoClienteRapido" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Registrar Nuevo Cliente</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">Nombre y Apellido</label>
-                    <input type="text" class="form-control" id="nuevoClienteNombre" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Teléfono</label>
-                    <input type="text" class="form-control" id="nuevoClienteTelefono">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-success" onclick="guardarClienteRapido()">Guardar y Seleccionar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
-function actualizarPrecioServicio(select) {
-    let opt = select.options[select.selectedIndex];
-    let precio = opt.getAttribute('data-precio') || 0;
-    document.getElementById('inputPrecio').value = precio;
-    calcularTotalesVenta();
-}
-
-function calcularTotalesVenta() {
-    let cantidad = parseFloat(document.getElementById('inputCantidad').value) || 0;
-    let precio = parseFloat(document.getElementById('inputPrecio').value) || 0;
-    let descuento = parseFloat(document.getElementById('inputDescuento').value) || 0;
-    let pagado = parseFloat(document.getElementById('inputPagado').value) || 0;
-
-    let subtotal = cantidad * precio;
-    let total = Math.max(0, subtotal - descuento);
-    let saldo = Math.max(0, total - pagado);
-
-    document.getElementById('lblSubtotal').innerText = '₲ ' + subtotal.toLocaleString('es-PY', {minimumFractionDigits: 2});
-    document.getElementById('lblDescuento').innerText = '₲ ' + descuento.toLocaleString('es-PY', {minimumFractionDigits: 2});
-    document.getElementById('lblTotal').innerText = '₲ ' + total.toLocaleString('es-PY', {minimumFractionDigits: 2});
-    document.getElementById('lblSaldo').innerText = '₲ ' + saldo.toLocaleString('es-PY', {minimumFractionDigits: 2});
-}
-
-function guardarClienteRapido() {
-    let nombre = document.getElementById('nuevoClienteNombre').value;
-    let telefono = document.getElementById('nuevoClienteTelefono').value;
-    if (!nombre) {
-        alert('Ingresa el nombre del cliente');
-        return;
+function toggleMonedaCobro(select) {
+    let cotiz = document.getElementById('inputCotizacion');
+    if(select.value === 'PYG') {
+        cotiz.value = 1;
+        cotiz.readOnly = true;
+    } else {
+        cotiz.readOnly = false;
+        cotiz.value = select.value === 'USD' ? 7500 : 1400; // Referencial
     }
+    calcularEquivalenteCobro();
+}
 
-    fetch('{{ url_for("main.agregar_cliente_ajax") }}', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `nombre=${encodeURIComponent(nombre)}&telefono=${encodeURIComponent(telefono)}`
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            let select = document.getElementById('clienteSelect');
-            let opt = document.createElement('option');
-            opt.value = data.id;
-            opt.text = data.nombre;
-            opt.selected = true;
-            select.add(opt);
-
-            let modalEl = document.getElementById('modalNuevoClienteRapido');
-            let modal = bootstrap.Modal.getInstance(modalEl);
-            modal.hide();
-        }
-    });
+function calcularEquivalenteCobro() {
+    let monto = parseFloat(document.getElementById('inputMontoRecibido').value) || 0;
+    let cotiz = parseFloat(document.getElementById('inputCotizacion').value) || 1;
+    let totalGs = monto * cotiz;
+    document.getElementById('lblEquivalenteGs').innerText = totalGs.toLocaleString('es-PY', {maximumFractionDigits: 0});
 }
 </script>
-{% endblock %}
