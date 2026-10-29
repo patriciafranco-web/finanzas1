@@ -11,9 +11,9 @@
 <ul class="nav nav-tabs mb-4" id="cadastrosTabs" role="tablist">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-cuentas" type="button">Cuentas</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-clientes" type="button">Clientes</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medicos" type="button">Médicos</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medicos" type="button">Profesionales</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-servicios" type="button">Servicios</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-paquetes" type="button">Planos y Paquetes</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-paquetes" type="button">Planos</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cxc" type="button">Cuentas por Cobrar</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cxp" type="button">Cuentas a Pagar</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-categorias" type="button">Categorías</button></li>
@@ -183,11 +183,11 @@
         </div>
     </div>
 
-    <!-- 3. MÉDICOS -->
+    <!-- 3. PROFESIONALES -->
     <div class="tab-pane fade" id="tab-medicos">
         <div class="d-flex justify-content-between mb-3">
-            <h5>Médicos y Reglas de Comisión</h5>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalMedico"><i class="fa-solid fa-plus me-1"></i> Nuevo Médico</button>
+            <h5>Profesionales</h5>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalMedico"><i class="fa-solid fa-plus me-1"></i> + Nuevo Profesional</button>
         </div>
         <div class="card shadow-sm">
             <div class="card-body p-0">
@@ -209,13 +209,13 @@
                             <td><span class="badge bg-success">{{ m.porcentaje_medico }}%</span></td>
                             <td><span class="badge bg-primary">{{ m.porcentaje_clinica }}%</span></td>
                             <td>
-                                <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este médico?');" class="d-inline">
+                                <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este profesional?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="text-center py-4 text-muted">No hay médicos registrados.</td></tr>
+                        <tr><td colspan="5" class="text-center py-4 text-muted">No hay profesionales registrados.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -226,8 +226,8 @@
     <!-- 4. SERVICIOS -->
     <div class="tab-pane fade" id="tab-servicios">
         <div class="d-flex justify-content-between mb-3">
-            <h5>Servicios Individuales</h5>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalServicio"><i class="fa-solid fa-plus me-1"></i> Nuevo Servicio</button>
+            <h5>Servicios</h5>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalServicio"><i class="fa-solid fa-plus me-1"></i> + Nuevo Servicio</button>
         </div>
         <div class="card shadow-sm">
             <div class="card-body p-0">
@@ -236,9 +236,11 @@
                         <tr>
                             <th>Nombre</th>
                             <th>Moneda</th>
-                            <th>Precio Venta</th>
-                            <th>Costo Unitario</th>
-                            <th>Reparto Adicional (%)</th>
+                            <th>Precio de venta</th>
+                            <th>Costo unitario</th>
+                            <th>Profesional</th>
+                            <th>Reparto adicional</th>
+                            <th>Costo con reparto</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -247,17 +249,71 @@
                         <tr>
                             <td class="fw-bold">{{ s.nombre }}</td>
                             <td><span class="badge bg-secondary">{{ s.moneda }}</span></td>
-                            <td class="text-success">₲ {{ "{:,.0f}".format(s.precio).replace(',', '.') }}</td>
+                            <td class="text-success">{% if s.precio > 0 %}₲ {{ "{:,.0f}".format(s.precio).replace(',', '.') }}{% else %}—{% endif %}</td>
                             <td>₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }}</td>
+                            <td>{{ s.profesional_asociado or '—' }}</td>
                             <td>{{ s.reparto_adicional or 0 }}%</td>
+                            <td class="fw-bold text-danger">₲ {{ "{:,.0f}".format((s.costo_unitario or 0) * (1 + (s.reparto_adicional or 0) / 100)).replace(',', '.') }}</td>
                             <td>
+                                <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarServicio{{ s.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
                                 <form action="{{ url_for('main.eliminar_servicio', id=s.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este servicio?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
+
+                        <!-- Modal Editar Servicio -->
+                        <div class="modal fade" id="modalEditarServicio{{ s.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('main.editar_servicio', id=s.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Editar servicio</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Nombre del servicio</label>
+                                                <input type="text" class="form-control" name="nombre" value="{{ s.nombre }}" required>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Moneda</label>
+                                                    <select class="form-select" name="moneda">
+                                                        <option value="PYG" {% if s.moneda == 'PYG' %}selected{% endif %}>PYG</option>
+                                                        <option value="USD" {% if s.moneda == 'USD' %}selected{% endif %}>USD</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Precio de venta (opcional)</label>
+                                                    <input type="number" step="any" class="form-control" name="precio" value="{{ s.precio }}">
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Costo unitario (Gs.)</label>
+                                                    <input type="number" step="any" class="form-control" name="costo_unitario" value="{{ s.costo_unitario }}" required>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Reparto adicional (%)</label>
+                                                    <input type="number" step="any" class="form-control" name="reparto_adicional" value="{{ s.reparto_adicional }}">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Profesional asociado</label>
+                                                <input type="text" class="form-control" name="profesional_asociado" value="{{ s.profesional_asociado or '' }}">
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                         {% else %}
-                        <tr><td colspan="6" class="text-center py-4 text-muted">No hay servicios registrados.</td></tr>
+                        <tr><td colspan="8" class="text-center py-4 text-muted">No hay servicios registrados.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -265,22 +321,22 @@
         </div>
     </div>
 
-    <!-- 5. PLANOS Y PAQUETES -->
+    <!-- 5. PLANOS -->
     <div class="tab-pane fade" id="tab-paquetes">
         <div class="d-flex justify-content-between mb-3">
-            <h5>Planos y Paquetes Médicos</h5>
-            <button class="btn btn-success fw-bold" data-bs-toggle="modal" data-bs-target="#modalPaquete"><i class="fa-solid fa-plus me-1"></i> Nuevo Plan / Paquete</button>
+            <h5>Planos y Paquetes</h5>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalPaquete"><i class="fa-solid fa-plus me-1"></i> + Nuevo Plan</button>
         </div>
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>Nombre del Plan</th>
+                            <th>Plan</th>
                             <th>Duración</th>
-                            <th>Precio Total (IVA Incl.)</th>
-                            <th>Servicios Incluidos</th>
-                            <th>Costo Total del Plan</th>
+                            <th>Precio</th>
+                            <th>Servicios incluidos</th>
+                            <th>Costo del plan</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -290,16 +346,16 @@
                             <td class="fw-bold text-primary">{{ p.nombre }}</td>
                             <td>{{ p.duracion_meses }} meses</td>
                             <td class="fw-bold">₲ {{ "{:,.0f}".format(p.precio).replace(',', '.') }}</td>
-                            <td>{{ p.items|length }} ítems</td>
+                            <td>{{ p.items|length }} servicios</td>
                             <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(p.items | sum(attribute='costo_total_item')).replace(',', '.') }}</td>
                             <td>
-                                <form action="{{ url_for('main.eliminar_paquete', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este paquete?');" class="d-inline">
+                                <form action="{{ url_for('main.eliminar_paquete', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este plan?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="text-center py-4 text-muted">No hay planes o paquetes registrados.</td></tr>
+                        <tr><td colspan="6" class="text-center py-4 text-muted">No hay planes registrados.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -310,8 +366,8 @@
     <!-- 6. CUENTAS POR COBRAR (CxC) -->
     <div class="tab-pane fade" id="tab-cxc">
         <div class="d-flex justify-content-between mb-3">
-            <h5>Pagos a Recibir (Cuentas por Cobrar)</h5>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCxC"><i class="fa-solid fa-plus me-1"></i> Nueva Cuenta a Cobrar</button>
+            <h5>Cuentas por Cobrar</h5>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCxC"><i class="fa-solid fa-plus me-1"></i> Nueva CxC</button>
         </div>
         <div class="card shadow-sm">
             <div class="card-body p-0">
@@ -335,26 +391,20 @@
                             <td><span class="badge bg-secondary">{{ x.moneda }}</span></td>
                             <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
                             <td class="fw-bold text-success">₲ {{ "{:,.0f}".format(x.monto).replace(',', '.') }}</td>
-                            <td>
-                                {% if x.estado == 'Pendiente' %}
-                                <span class="badge bg-warning text-dark">Pendiente</span>
-                                {% else %}
-                                <span class="badge bg-success">Pagado</span>
-                                {% endif %}
-                            </td>
+                            <td><span class="badge {% if x.estado == 'Pagado' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ x.estado }}</span></td>
                             <td>
                                 <div class="d-flex gap-1">
                                     {% if x.estado == 'Pendiente' %}
                                     <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalCobrar{{ x.id }}">Cobrar</button>
                                     {% endif %}
-                                    <form action="{{ url_for('main.eliminar_cxc', id=x.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar esta cuenta por cobrar?');" class="d-inline">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+                                    <form action="{{ url_for('main.eliminar_cxc', id=x.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir?');" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i> Excluir</button>
                                     </form>
                                 </div>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="7" class="text-center py-4 text-muted">No hay cuentas por cobrar pendientes.</td></tr>
+                        <tr><td colspan="7" class="text-center py-4 text-muted">No hay cuentas por cobrar.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -366,7 +416,7 @@
     <div class="tab-pane fade" id="tab-cxp">
         <div class="d-flex justify-content-between mb-3">
             <h5>Cuentas a Pagar</h5>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCxP"><i class="fa-solid fa-plus me-1"></i> Nueva Cuenta a Pagar</button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCxP"><i class="fa-solid fa-plus me-1"></i> Nueva CxP</button>
         </div>
         <div class="card shadow-sm">
             <div class="card-body p-0">
@@ -390,26 +440,15 @@
                             <td><span class="badge bg-secondary">{{ p.moneda }}</span></td>
                             <td>{{ p.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
                             <td class="fw-bold text-danger">₲ {{ "{:,.0f}".format(p.monto).replace(',', '.') }}</td>
+                            <td><span class="badge {% if p.estado == 'Pagado' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ p.estado }}</span></td>
                             <td>
-                                {% if p.estado == 'Pendiente' %}
-                                <span class="badge bg-warning text-dark">Pendiente</span>
-                                {% else %}
-                                <span class="badge bg-success">Pagado</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="d-flex gap-1">
-                                    {% if p.estado == 'Pendiente' %}
-                                    <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#modalPagar{{ p.id }}">Pagar</button>
-                                    {% endif %}
-                                    <form action="{{ url_for('main.eliminar_cxp', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar esta cuenta a pagar?');" class="d-inline">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i></button>
-                                    </form>
-                                </div>
+                                <form action="{{ url_for('main.eliminar_cxp', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i> Excluir</button>
+                                </form>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="7" class="text-center py-4 text-muted">No hay cuentas a pagar registradas.</td></tr>
+                        <tr><td colspan="7" class="text-center py-4 text-muted">No hay cuentas a pagar.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -461,7 +500,7 @@
                         {% for cc in centros_costo %}
                         <tr><td class="fw-bold">{{ cc.nombre }}</td></tr>
                         {% else %}
-                        <tr><td class="text-center py-4 text-muted">No hay centros de costo registrados.</td></tr>
+                        <tr><td class="text-center py-4 text-muted">No hay centros de costo.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -471,48 +510,19 @@
 </div>
 
 <!-- ================= MODALES DE CREACIÓN ================= -->
-
 <!-- Modal Cuenta -->
 <div class="modal fade" id="modalCuenta" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_cuenta') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nueva Cuenta</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
+                <div class="modal-header"><h5 class="modal-title">Nueva Cuenta</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nombre</label>
-                        <input type="text" class="form-control" name="nombre" required placeholder="Ej: Caja Principal Gs.">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tipo de Cuenta</label>
-                        <select class="form-select" name="tipo_cuenta">
-                            <option value="Caja Efectivo">Caja Efectivo</option>
-                            <option value="Banco">Banco</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Moneda</label>
-                        <select class="form-select" name="moneda">
-                            <option value="PYG">PYG (₲)</option>
-                            <option value="USD">USD ($)</option>
-                            <option value="BRL">BRL (R$)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Saldo Inicial</label>
-                        <input type="number" step="any" class="form-control" name="saldo_inicial" value="0">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Color Distintivo</label>
-                        <input type="color" class="form-control form-control-color w-100" name="color" value="#17b978">
-                    </div>
+                    <div class="mb-3"><label class="form-label">Nombre</label><input type="text" class="form-control" name="nombre" required placeholder="Ej: Continental"></div>
+                    <div class="mb-3"><label class="form-label">Tipo de Cuenta</label><select class="form-select" name="tipo_cuenta"><option value="Banco">Banco</option><option value="Caja Efectivo">Caja Efectivo</option></select></div>
+                    <div class="mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG">PYG (₲)</option><option value="USD">USD ($)</option><option value="BRL">BRL (R$)</option></select></div>
+                    <div class="mb-3"><label class="form-label">Saldo Inicial</label><input type="number" step="any" class="form-control" name="saldo_inicial" value="0"></div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Cuenta</button>
-                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div>
             </form>
         </div>
     </div>
@@ -523,31 +533,13 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_cliente') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nuevo Cliente / Paciente</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
+                <div class="modal-header"><h5 class="modal-title">Nuevo Cliente / Paciente</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nombre Completo</label>
-                        <input type="text" class="form-control" name="nombre" required placeholder="Ej: Juan Pérez">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Documento / C.I.</label>
-                        <input type="text" class="form-control" name="documento" placeholder="Ej: 1.234.567">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Teléfono</label>
-                        <input type="text" class="form-control" name="telefono" placeholder="Ej: 0981 123456">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email" placeholder="correo@ejemplo.com">
-                    </div>
+                    <div class="mb-3"><label class="form-label">Nombre</label><input type="text" class="form-control" name="nombre" required placeholder="Ej: Paciente P-001"></div>
+                    <div class="mb-3"><label class="form-label">Documento (CI / RUC)</label><input type="text" class="form-control" name="documento"></div>
+                    <div class="mb-3"><label class="form-label">Teléfono</label><input type="text" class="form-control" name="telefono"></div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Cliente</button>
-                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div>
             </form>
         </div>
     </div>
@@ -558,31 +550,13 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_medico') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nuevo Médico</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
+                <div class="modal-header"><h5 class="modal-title">Nuevo Profesional</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nombre del Médico</label>
-                        <input type="text" class="form-control" name="nombre" required placeholder="Dr. Carlos Benítez">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Especialidad</label>
-                        <input type="text" class="form-control" name="especialidad" placeholder="Pediatría">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">% Participación Médico</label>
-                        <input type="number" step="any" class="form-control" name="porcentaje_medico" value="70">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">% Participación Clínica</label>
-                        <input type="number" step="any" class="form-control" name="porcentaje_clinica" value="30">
-                    </div>
+                    <div class="mb-3"><label class="form-label">Nombre</label><input type="text" class="form-control" name="nombre" required placeholder="Dra. Romina"></div>
+                    <div class="mb-3"><label class="form-label">Especialidad</label><input type="text" class="form-control" name="especialidad" placeholder="Metabólica"></div>
+                    <div class="mb-3"><label class="form-label">% Comisión Médico</label><input type="number" step="any" class="form-control" name="porcentaje_medico" value="70"></div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Médico</button>
-                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div>
             </form>
         </div>
     </div>
@@ -593,254 +567,50 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_servicio') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nuevo Servicio Individual</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
+                <div class="modal-header"><h5 class="modal-title">Nuevo Servicio</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nombre del Servicio</label>
-                        <input type="text" class="form-control" name="nombre" required placeholder="Ej: Consulta Metabólica">
+                    <div class="mb-3"><label class="form-label">Nombre del servicio</label><input type="text" class="form-control" name="nombre" required placeholder="Consulta nutricional"></div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG">PYG</option><option value="USD">USD</option></select></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Precio de venta (opcional)</label><input type="number" step="any" class="form-control" name="precio" value="0"></div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Moneda</label>
-                            <select class="form-select" name="moneda">
-                                <option value="PYG">PYG (₲)</option>
-                                <option value="USD">USD ($)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Precio de Venta (Opcional)</label>
-                            <input type="number" step="any" class="form-control" name="precio" value="0">
-                        </div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Costo unitario (Gs.)</label><input type="number" step="any" class="form-control" name="costo_unitario" value="0" required></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Reparto adicional (%)</label><input type="number" step="any" class="form-control" name="reparto_adicional" value="0"></div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Costo Unitario (Gs.)</label>
-                            <input type="number" step="any" class="form-control" name="costo_unitario" value="0" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Reparto Adicional (%)</label>
-                            <input type="number" step="any" class="form-control" name="reparto_adicional" value="0" placeholder="Ej: 50 para nutricionista">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Profesional Asociado</label>
-                        <input type="text" class="form-control" name="profesional_asociado" placeholder="Ej: Nutricionista / Dra. Romina">
-                    </div>
+                    <div class="mb-3"><label class="form-label">Profesional asociado</label><input type="text" class="form-control" name="profesional_asociado" placeholder="Ej: Nutricionista"></div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Servicio</button>
-                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Modal Nuevo Paquete / Plan -->
+<!-- Modal Paquete -->
 <div class="modal fade" id="modalPaquete" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_paquete') }}" method="POST">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-boxes me-2"></i> Nuevo Plan o Paquete Médico</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
+                <div class="modal-header bg-success text-white"><h5 class="modal-title">Nuevo Plan o Paquete</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Nombre del Plan</label>
-                            <input type="text" class="form-control" name="nombre" required placeholder="Ej: Programa Metabolismo">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label fw-bold">Precio Total (IVA Incl.)</label>
-                            <input type="number" step="any" class="form-control" name="precio" required placeholder="28780000">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label fw-bold">Duración (Meses)</label>
-                            <input type="number" class="form-control" name="duracion_meses" value="4" required>
-                        </div>
+                        <div class="col-md-6 mb-3"><label class="form-label fw-bold">Nombre del Plan</label><input type="text" class="form-control" name="nombre" required placeholder="Programa Metabolismo"></div>
+                        <div class="col-md-3 mb-3"><label class="form-label fw-bold">Precio Total</label><input type="number" step="any" class="form-control" name="precio" required placeholder="28780000"></div>
+                        <div class="col-md-3 mb-3"><label class="form-label fw-bold">Duración (Meses)</label><input type="number" class="form-control" name="duracion_meses" value="4" required></div>
                     </div>
-                    
-                    <h6 class="fw-bold text-secondary mt-3 mb-2">Composición del Paquete (Ítems de Servicios)</h6>
-                    <p class="text-muted small">Selecciona los servicios del catálogo, la cantidad y el costo se calculará automáticamente.</p>
-                    
+                    <h6 class="fw-bold text-secondary mt-3 mb-2">Servicios Incluidos</h6>
                     <div id="contenedor-items-paquete">
                         <div class="row item-row mb-2 align-items-end">
-                            <div class="col-md-5">
-                                <label class="form-label small">Servicio</label>
-                                <select name="servicio_id[]" class="form-select form-select-sm" required>
-                                    <option value="">Seleccione servicio...</option>
-                                    {% for s in servicios %}
-                                    <option value="{{ s.id }}">{{ s.nombre }} (Costo: ₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }})</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small">Cantidad</label>
-                                <input type="number" name="cantidad[]" class="form-control form-control-sm" value="1" min="1" required>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small">Costo Unit.</label>
-                                <input type="number" name="costo_unitario[]" class="form-control form-control-sm" value="0" required>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label small">Reparto %</label>
-                                <input type="number" name="reparto_adicional[]" class="form-control form-control-sm" value="0">
-                            </div>
-                            <div class="col-md-1">
-                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button>
-                            </div>
+                            <div class="col-md-5"><select name="servicio_id[]" class="form-select form-select-sm" required><option value="">Seleccione servicio...</option>{% for s in servicios %}<option value="{{ s.id }}">{{ s.nombre }}</option>{% endfor %}</select></div>
+                            <div class="col-md-2"><input type="number" name="cantidad[]" class="form-control form-control-sm" value="1" min="1" required></div>
+                            <div class="col-md-2"><input type="number" name="costo_unitario[]" class="form-control form-control-sm" value="0" required></div>
+                            <div class="col-md-2"><input type="number" name="reparto_adicional[]" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button></div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="agregarFilaItem()"><i class="fa-solid fa-plus me-1"></i> Agregar otro ítem</button>
+                    <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="agregarFilaItem()"><i class="fa-solid fa-plus me-1"></i> + Agregar servicio</button>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success fw-bold">Guardar Paquete</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal CxC -->
-<div class="modal fade" id="modalCxC" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('main.agregar_cxc') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nueva Cuenta por Cobrar</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Cliente / Paciente</label>
-                        <select class="form-select" name="cliente_id">
-                            <option value="">Seleccionar cliente...</option>
-                            {% for cl in clientes %}
-                            <option value="{{ cl.id }}">{{ cl.nombre }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Concepto</label>
-                        <input type="text" class="form-control" name="concepto" required placeholder="Ej: Paquete 1 mes">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Moneda</label>
-                        <select class="form-select" name="moneda">
-                            <option value="PYG">PYG (₲)</option>
-                            <option value="USD">USD ($)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto</label>
-                        <input type="number" step="any" class="form-control" name="monto" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha de Vencimiento</label>
-                        <input type="date" class="form-control" name="fecha_vencimiento" required>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal CxP -->
-<div class="modal fade" id="modalCxP" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('main.agregar_cxp') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nueva Cuenta a Pagar</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Proveedor</label>
-                        <input type="text" class="form-control" name="proveedor" required placeholder="Ej: Medisys">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Concepto</label>
-                        <input type="text" class="form-control" name="concepto" required placeholder="Ej: Insumos">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Moneda</label>
-                        <select class="form-select" name="moneda">
-                            <option value="PYG">PYG (₲)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto</label>
-                        <input type="number" step="any" class="form-control" name="monto" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha de Vencimiento</label>
-                        <input type="date" class="form-control" name="fecha_vencimiento" required>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Categoría -->
-<div class="modal fade" id="modalCategoria" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('main.agregar_categoria') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nueva Categoría</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nombre</label>
-                        <input type="text" class="form-control" name="nombre" required placeholder="Ej: Consultas">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tipo</label>
-                        <select class="form-select" name="tipo">
-                            <option value="Ingreso">Ingreso</option>
-                            <option value="Salida">Salida</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Centro de Costo -->
-<div class="modal fade" id="modalCentro" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('main.agregar_centro_costo') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Nuevo Centro de Costo</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Nombre</label>
-                        <input type="text" class="form-control" name="nombre" required placeholder="Ej: Sede Central">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar</button>
-                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-success fw-bold">Guardar Plan</button></div>
             </form>
         </div>
     </div>
@@ -857,24 +627,14 @@ function agregarFilaItem() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll('.cuenta-dot').forEach(function(el) {
-        el.style.backgroundColor = el.getAttribute('data-color');
-    });
-
     let activeTab = localStorage.getItem('activeCadastrosTab');
     if (activeTab) {
         let triggerEl = document.querySelector(`[data-bs-target="${activeTab}"]`);
-        if (triggerEl) {
-            let tab = new bootstrap.Tab(triggerEl);
-            tab.show();
-        }
+        if (triggerEl) { let tab = new bootstrap.Tab(triggerEl); tab.show(); }
     }
-
-    const triggerTabList = document.querySelectorAll('#cadastrosTabs button');
-    triggerTabList.forEach(function (triggerEl) {
+    document.querySelectorAll('#cadastrosTabs button').forEach(function (triggerEl) {
         triggerEl.addEventListener('click', function () {
-            let target = this.getAttribute('data-bs-target');
-            localStorage.setItem('activeCadastrosTab', target);
+            localStorage.setItem('activeCadastrosTab', this.getAttribute('data-bs-target'));
         });
     });
 });
