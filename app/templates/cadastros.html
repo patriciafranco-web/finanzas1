@@ -51,11 +51,52 @@
                             <td><span class="badge bg-secondary">{{ c.moneda }}</span></td>
                             <td>{{ "{:,.2f}".format(c.saldo_inicial) }}</td>
                             <td>
-                                <form action="{{ url_for('main.eliminar_cuenta', id=c.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar esta cuenta?');" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCuenta{{ c.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
+                                <form action="{{ url_for('main.eliminar_cuenta', id=c.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir esta cuenta?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
+
+                        <!-- Modal Editar Cuenta -->
+                        <div class="modal fade" id="modalEditarCuenta{{ c.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('main.editar_cuenta', id=c.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Editar cuenta</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Nombre de la cuenta</label>
+                                                <input type="text" class="form-control" name="nombre" value="{{ c.nombre }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Tipo</label>
+                                                <select class="form-select" name="tipo_cuenta">
+                                                    <option value="Caja Efectivo" {% if c.tipo_cuenta == 'Caja Efectivo' %}selected{% endif %}>Caja Efectivo</option>
+                                                    <option value="Banco" {% if c.tipo_cuenta == 'Banco' %}selected{% endif %}>Banco</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Moneda</label>
+                                                <select class="form-select" name="moneda">
+                                                    <option value="PYG" {% if c.moneda == 'PYG' %}selected{% endif %}>PYG</option>
+                                                    <option value="USD" {% if c.moneda == 'USD' %}selected{% endif %}>USD</option>
+                                                    <option value="BRL" {% if c.moneda == 'BRL' %}selected{% endif %}>BRL</option>
+                                                </select>
+                                                <small class="text-muted">Nota: La moneda no se puede cambiar si la cuenta ya tiene movimientos.</small>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                         {% else %}
                         <tr><td colspan="5" class="text-center py-4 text-muted">No hay cuentas bancarias registradas.</td></tr>
                         {% endfor %}
@@ -91,11 +132,48 @@
                             <td>{{ cl.telefono or '-' }}</td>
                             <td>{{ cl.email or '-' }}</td>
                             <td>
-                                <form action="{{ url_for('main.eliminar_cliente', id=cl.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar este cliente?');" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCliente{{ cl.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
+                                <form action="{{ url_for('main.eliminar_cliente', id=cl.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este cliente?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
+
+                        <!-- Modal Editar Cliente -->
+                        <div class="modal fade" id="modalEditarCliente{{ cl.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('main.editar_cliente', id=cl.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Editar cliente / paciente</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Nombre Completo</label>
+                                                <input type="text" class="form-control" name="nombre" value="{{ cl.nombre }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Documento (CI / RUC)</label>
+                                                <input type="text" class="form-control" name="documento" value="{{ cl.documento or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Teléfono</label>
+                                                <input type="text" class="form-control" name="telefono" value="{{ cl.telefono or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Email</label>
+                                                <input type="email" class="form-control" name="email" value="{{ cl.email or '' }}">
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                         {% else %}
                         <tr><td colspan="5" class="text-center py-4 text-muted">No hay clientes registrados.</td></tr>
                         {% endfor %}
@@ -131,8 +209,8 @@
                             <td><span class="badge bg-success">{{ m.porcentaje_medico }}%</span></td>
                             <td><span class="badge bg-primary">{{ m.porcentaje_clinica }}%</span></td>
                             <td>
-                                <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar este médico?');" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este médico?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
@@ -173,8 +251,8 @@
                             <td>₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }}</td>
                             <td>{{ s.reparto_adicional or 0 }}%</td>
                             <td>
-                                <form action="{{ url_for('main.eliminar_servicio', id=s.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar este servicio?');" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                <form action="{{ url_for('main.eliminar_servicio', id=s.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este servicio?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
@@ -187,10 +265,10 @@
         </div>
     </div>
 
-    <!-- 5. PLANOS Y PAQUETES (NUEVO REQUERIMIENTO) -->
+    <!-- 5. PLANOS Y PAQUETES -->
     <div class="tab-pane fade" id="tab-paquetes">
         <div class="d-flex justify-content-between mb-3">
-            <h5>Planos y Paquetes Médicos (Ej. Programa Metabolismo)</h5>
+            <h5>Planos y Paquetes Médicos</h5>
             <button class="btn btn-success fw-bold" data-bs-toggle="modal" data-bs-target="#modalPaquete"><i class="fa-solid fa-plus me-1"></i> Nuevo Plan / Paquete</button>
         </div>
         <div class="card shadow-sm">
@@ -215,8 +293,8 @@
                             <td>{{ p.items|length }} ítems</td>
                             <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(p.items | sum(attribute='costo_total_item')).replace(',', '.') }}</td>
                             <td>
-                                <form action="{{ url_for('main.eliminar_paquete', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar este paquete?');" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                <form action="{{ url_for('main.eliminar_paquete', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este paquete?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
@@ -270,7 +348,7 @@
                                     <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalCobrar{{ x.id }}">Cobrar</button>
                                     {% endif %}
                                     <form action="{{ url_for('main.eliminar_cxc', id=x.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar esta cuenta por cobrar?');" class="d-inline">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i></button>
                                     </form>
                                 </div>
                             </td>
@@ -325,7 +403,7 @@
                                     <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#modalPagar{{ p.id }}">Pagar</button>
                                     {% endif %}
                                     <form action="{{ url_for('main.eliminar_cxp', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar esta cuenta a pagar?');" class="d-inline">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i></button>
                                     </form>
                                 </div>
                             </td>
@@ -412,7 +490,7 @@
                         <label class="form-label">Tipo de Cuenta</label>
                         <select class="form-select" name="tipo_cuenta">
                             <option value="Caja Efectivo">Caja Efectivo</option>
-                            <option value="Cuenta Corriente">Cuenta Corriente</option>
+                            <option value="Banco">Banco</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -560,7 +638,7 @@
     </div>
 </div>
 
-<!-- Modal Nuevo Paquete / Plan (Alineado al manual) -->
+<!-- Modal Nuevo Paquete / Plan -->
 <div class="modal fade" id="modalPaquete" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -595,7 +673,7 @@
                                 <select name="servicio_id[]" class="form-select form-select-sm" required>
                                     <option value="">Seleccione servicio...</option>
                                     {% for s in servicios %}
-                                    <option value="{{ s.id }}">{{ s.name if s.name else s.nombre }} (Costo: ₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }})</option>
+                                    <option value="{{ s.id }}">{{ s.nombre }} (Costo: ₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }})</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -773,7 +851,6 @@ function agregarFilaItem() {
     const contenedor = document.getElementById('contenedor-items-paquete');
     const primeraFila = contenedor.querySelector('.item-row');
     const nuevaFila = primeraFila.cloneNode(true);
-    // Limpiar valores
     nuevaFila.querySelectorAll('input').forEach(input => input.value = input.name.includes('cantidad') ? '1' : '0');
     nuevaFila.querySelector('select').selectedIndex = 0;
     contenedor.appendChild(nuevaFila);
