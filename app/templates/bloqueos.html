@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2>Bloqueos de Períodos y Cuentas</h2>
+        <p class="text-muted mb-0">Control de cierres mensuales y restricciones de edición según manual operativo</p>
+    </div>
+    <div>
+        <button class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#modalBloquearPeriodo"><i class="fa-solid fa-lock me-1"></i> Bloquear período</button>
+        <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalDesbloquearTodo"><i class="fa-solid fa-unlock-alt me-1"></i> Desbloquear todo</button>
+    </div>
+</div>
+
+<!-- Bloqueos Activos -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light fw-bold">Bloqueos activos</div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Período</th>
+                    <th>Cuenta</th>
+                    <th>Bloqueado el</th>
+                    <th>Por</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in bloqueos if b.estado == 'Bloqueado' %}
+                <tr>
+                    <td class="fw-bold">{{ b.periodo }}</td>
+                    <td>{{ b.cuenta.nombre if b.cuenta else 'Todas las cuentas' }}</td>
+                    <td>{{ b.fecha_bloqueo.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td>{{ b.usuario }}</td>
+                    <td><span class="badge bg-danger">Bloqueado</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalDesbloquear{{ b.id }}">Desbloquear</button>
+                    </td>
+                </tr>
+
+                <!-- Modal Desbloquear Período Individual -->
+                <div class="modal fade" id="modalDesbloquear{{ b.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="{{ url_for('main.desbloquear_periodo', id=b.id) }}" method="POST">
+                                <div class="modal-header bg-warning text-dark">
+                                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-triangle-exclamation me-1"></i> Desbloquear período</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="text-muted">¿Está seguro de que desea desbloquear este período?</p>
+                                    <ul class="list-unstyled small mb-3">
+                                        <li><strong>Período:</strong> {{ b.periodo }}</li>
+                                        <li><strong>Cuenta:</strong> {{ b.cuenta.nombre if b.cuenta else 'Todas las cuentas' }}</li>
+                                        <li><strong>Bloqueado el:</strong> {{ b.fecha_bloqueo.strftime('%d/%m/%Y') }} por {{ b.usuario }}</li>
+                                    </ul>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
+                                        <textarea class="form-control" name="motivo" rows="2" required placeholder="Ej: Corrección de una transacción de octubre"></textarea>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" required id="checkEntendido{{ b.id }}">
+                                        <label class="form-check-label small" for="checkEntendido{{ b.id }}">
+                                            Entiendo que, mientras esté desbloqueado, se pueden alterar movimientos de este período.
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-danger fw-bold">Sí, desbloquear</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <tr><td colspan="6" class="text-center py-3 text-muted">No hay bloqueos activos en este momento.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Historial de Bloqueos -->
+<div class="card shadow-sm">
+    <div class="card-header bg-light fw-bold">Historial de auditoría de bloqueos y desbloqueos</div>
+    <div class="card-body p-0">
+        <table class="table table-striped mb-0 small">
+            <thead>
+                <tr>
+                    <th>Fecha y hora</th>
+                    <th>Usuario</th>
+                    <th>Acción</th>
+                    <th>Período / cuenta</th>
+                    <th>Motivo / Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in bloqueos %}
+                <tr>
+                    <td>{{ b.fecha_bloqueo.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td>{{ b.usuario }}</td>
+                    <td><span class="badge {% if b.estado == 'Bloqueado' %}bg-danger{% else %}bg-secondary{% endif %}">{{ b.estado }}</span></td>
+                    <td>{{ b.periodo }} ({{ b.cuenta.nombre if b.cuenta else 'Todas' }})</td>
+                    <td>{{ b.motivo_desbloqueo or 'Cierre estándar' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Bloquear Período -->
+<div class="modal fade" id="modalBloquearPeriodo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('main.bloquear_periodo') }}" method="POST">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-lock me-1"></i> Bloquear período</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Período a bloquear</label>
+                        <input type="text" class="form-control" name="periodo" value="Octubre 2026" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cuentas a bloquear</label>
+                        <select class="form-select" name="cuenta_id">
+                            <option value="todas">Todas las cuentas</option>
+                            {% for c in cuentas %}
+                            <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="alert alert-warning small py-2">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i> No se podrá crear, editar, eliminar ni importar transacciones, ventas o cobros con fecha de este período.
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" required id="checkEntendidoBloq">
+                        <label class="form-check-label small" for="checkEntendidoBloq">
+                            Entiendo que no podré hacer alteraciones en este período.
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger fw-bold">Bloquear período</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Desbloquear Todo -->
+<div class="modal fade" id="modalDesbloquearTodo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('main.desbloquear_todo') }}" method="POST">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-unlock me-1"></i> Desbloquear todo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-danger fw-bold">¿Está seguro de que desea desbloquear todos los bloqueos?</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
+                        <textarea class="form-control" name="motivo" rows="2" required placeholder="Motivo de la apertura general..."></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" required id="checkEntendidoTodo">
+                        <label class="form-check-label small" for="checkEntendidoTodo">
+                            Entiendo que se liberarán todos los períodos y cuentas de forma simultánea.
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning fw-bold">Sí, desbloquear todo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
