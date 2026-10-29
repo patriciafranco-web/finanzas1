@@ -8,7 +8,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     rol = db.Column(db.String(50), default='Gerente Financiera')
-
+    
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
@@ -47,8 +47,13 @@ class Servicio(db.Model):
     nombre = db.Column(db.String(150), nullable=False)
     descripcion = db.Column(db.Text)
     moneda = db.Column(db.String(10), nullable=False)
-    precio = db.Column(db.Float, nullable=False)
+    precio = db.Column(db.Float, nullable=False)  # Precio de venta opcional o unitario
     activo = db.Column(db.Boolean, default=True)
+    
+    # Nuevos campos para el módulo avanzado de costos por servicio/paquete
+    costo_unitario = db.Column(db.Float, default=0.0)
+    profesional_asociado = db.Column(db.String(100), nullable=True)
+    reparto_adicional = db.Column(db.Float, default=0.0)  # Porcentaje ej. 50% que se suma al costo
 
 class Categoria(db.Model):
     __tablename__ = 'categoria'
@@ -74,10 +79,10 @@ class Transaccion(db.Model):
     
     cuenta_id = db.Column(db.Integer, db.ForeignKey('cuenta.id'), nullable=True)
     cuenta = db.relationship('Cuenta', backref='transacciones')
-    
+
     categoria_id = db.Column(db.Integer, db.ForeignKey('categoria.id'), nullable=True)
     categoria = db.relationship('Categoria', backref='transacciones')
-    
+
     centro_costo_id = db.Column(db.Integer, db.ForeignKey('centro_costo.id'), nullable=True)
     centro_costo = db.relationship('CentroCosto', backref='transacciones')
 
@@ -96,7 +101,7 @@ class CuentaPorCobrar(db.Model):
     monto = db.Column(db.Float, nullable=False)
     fecha_emision = db.Column(db.DateTime, nullable=False)
     fecha_vencimiento = db.Column(db.DateTime, nullable=False)
-    estado = db.Column(db.String(20), default='Pendiente') # Pendiente, Parcial, Pagado
+    estado = db.Column(db.String(20), default='Pendiente')
     
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=True)
     cliente = db.relationship('Cliente', backref='cxc')
@@ -130,19 +135,60 @@ class PrestacionServicio(db.Model):
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=True)
     cliente = db.relationship('Cliente', backref='prestaciones')
 
+# --- NUEVOS MODELOS PARA PAQUETES / PLANES Y CÁLCULOS DE VENTAS ---
+
+class Paquete(db.Model):
+    __tablename__ = 'paquete'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(150), nullable=False)
+    moneda = db.Column(db.String(10), default='PYG')
+    precio = db.Column(db.Float, nullable=False)  # Precio total (IVA incluido)
+    duracion_meses = db.Column(db.Integer, default=4)
+    
+    items = db.relationship('PaqueteItem', backref='paquete', cascade='all, delete-orphan', lazy=True)
+
+class PaqueteItem(db.Model):
+    __tablename__ = 'paquete_item'
+    id = db.Column(db.Integer, primary_key=True)
+    paquete_id = db.Column(db.Integer, db.ForeignKey('paquete.id'), nullable=False)
+    servicio_id = db.Column(db.Integer, db.ForeignKey('servicio.id'), nullable=False)
+    servicio = db.relationship('Servicio')
+    
+    cantidad = db.Column(db.Integer, default=1)
+    costo_unitario = db.Column(db.Float, default=0.0)
+    reparto_adicional = db.Column(db.Float, default=0.0)  # Porcentaje ej. 50%
+    
+    @property
+    def costo_total_item(self):
+        return self.cantidad * self.costo_unitario * (1 + (self.reparto_adicional / 100))
+
 class Venta(db.Model):
     __tablename__ = 'venta'
     id = db.Column(db.Integer, primary_key=True)
     fecha = db.Column(db.DateTime, nullable=False)
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=True)
     cliente = db.relationship('Cliente', backref='ventas')
+    
+    paquete_id = db.Column(db.Integer, db.ForeignKey('paquete.id'), nullable=True)
+    paquete = db.relationship('Paquete', backref='ventas')
+    
     subtotal = db.Column(db.Float, default=0.0)
     descuento = db.Column(db.Float, default=0.0)
     total = db.Column(db.Float, nullable=False)
     pagado = db.Column(db.Float, default=0.0)
     saldo = db.Column(db.Float, default=0.0)
-    estado = db.Column(db.String(20), default='Pendiente') # Pagada, Parcial, Pendiente, Cancelada
+    estado = db.Column(db.String(20), default='Pendiente')  # Pagada, Parcial, Pendiente, Cancelada
+    
+    # Campos históricos calculados congelados al momento de la venta
+    iva = db.Column(db.Float, default=0.0)
+    tarifa_pasarela = db.Column(db.Float, default=0.0)
+    costo_servicios = db.Column(db.Float, default=0.0)
+    margen_contribucion = db.Column(db.Float, default=0.0)
+    costo_fijo_plan = db.Column(db.Float, default=0.0)
+    ganancia_plan = db.Column(db.Float, default=0.0)
+    
     detalles = db.relationship('DetalleVenta', backref='venta', cascade='all, delete-orphan')
+    cuotas = db.relationship('CuotaVenta', backref='venta', cascade='all, delete-orphan', lazy=True)
 
 class DetalleVenta(db.Model):
     __tablename__ = 'detalle_venta'
@@ -154,3 +200,12 @@ class DetalleVenta(db.Model):
     precio_unitario = db.Column(db.Float, nullable=False)
     subtotal = db.Column(db.Float, nullable=False)
     observacion = db.Column(db.String(200))
+
+class CuotaVenta(db.Model):
+    __tablename__ = 'cuota_venta'
+    id = db.Column(db.Integer, primary_key=True)
+    venta_id = db.Column(db.Integer, db.ForeignKey('venta.id'), nullable=False)
+    numero_cuota = db.Column(db.String(20), nullable=False)  # Ej: "1 de 4"
+    vencimiento_label = db.Column(db.String(50), nullable=False)  # Ej: "Día de la venta", "1 mes después"
+    valor = db.Column(db.Float, nullable=False)
+    estado = db.Column(db.String(20), default='Pendiente')
