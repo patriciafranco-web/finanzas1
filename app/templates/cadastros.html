@@ -3,7 +3,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h2>Cadastros y Registros Maestros</h2>
-        <p class="text-muted mb-0">Gestión de cuentas, clientes, médicos, servicios, cuentas a pagar/cobrar y categorías</p>
+        <p class="text-muted mb-0">Gestión de cuentas, clientes, médicos, servicios, paquetes, cuentas a pagar/cobrar y categorías</p>
     </div>
 </div>
 
@@ -13,6 +13,7 @@
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-clientes" type="button">Clientes</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medicos" type="button">Médicos</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-servicios" type="button">Servicios</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-paquetes" type="button">Planos y Paquetes</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cxc" type="button">Cuentas por Cobrar</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cxp" type="button">Cuentas a Pagar</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-categorias" type="button">Categorías</button></li>
@@ -147,7 +148,7 @@
     <!-- 4. SERVICIOS -->
     <div class="tab-pane fade" id="tab-servicios">
         <div class="d-flex justify-content-between mb-3">
-            <h5>Servicios y Paquetes</h5>
+            <h5>Servicios Individuales</h5>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalServicio"><i class="fa-solid fa-plus me-1"></i> Nuevo Servicio</button>
         </div>
         <div class="card shadow-sm">
@@ -157,7 +158,9 @@
                         <tr>
                             <th>Nombre</th>
                             <th>Moneda</th>
-                            <th>Precio</th>
+                            <th>Precio Venta</th>
+                            <th>Costo Unitario</th>
+                            <th>Reparto Adicional (%)</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -166,7 +169,9 @@
                         <tr>
                             <td class="fw-bold">{{ s.nombre }}</td>
                             <td><span class="badge bg-secondary">{{ s.moneda }}</span></td>
-                            <td class="fw-bold text-success">{{ "{:,.2f}".format(s.precio) }}</td>
+                            <td class="text-success">₲ {{ "{:,.0f}".format(s.precio).replace(',', '.') }}</td>
+                            <td>₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }}</td>
+                            <td>{{ s.reparto_adicional or 0 }}%</td>
                             <td>
                                 <form action="{{ url_for('main.eliminar_servicio', id=s.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar este servicio?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
@@ -174,7 +179,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="4" class="text-center py-4 text-muted">No hay servicios o paquetes registrados.</td></tr>
+                        <tr><td colspan="6" class="text-center py-4 text-muted">No hay servicios registrados.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -182,7 +187,49 @@
         </div>
     </div>
 
-    <!-- 5. CUENTAS POR COBRAR (CxC) -->
+    <!-- 5. PLANOS Y PAQUETES (NUEVO REQUERIMIENTO) -->
+    <div class="tab-pane fade" id="tab-paquetes">
+        <div class="d-flex justify-content-between mb-3">
+            <h5>Planos y Paquetes Médicos (Ej. Programa Metabolismo)</h5>
+            <button class="btn btn-success fw-bold" data-bs-toggle="modal" data-bs-target="#modalPaquete"><i class="fa-solid fa-plus me-1"></i> Nuevo Plan / Paquete</button>
+        </div>
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nombre del Plan</th>
+                            <th>Duración</th>
+                            <th>Precio Total (IVA Incl.)</th>
+                            <th>Servicios Incluidos</th>
+                            <th>Costo Total del Plan</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in paquetes %}
+                        <tr>
+                            <td class="fw-bold text-primary">{{ p.nombre }}</td>
+                            <td>{{ p.duracion_meses }} meses</td>
+                            <td class="fw-bold">₲ {{ "{:,.0f}".format(p.precio).replace(',', '.') }}</td>
+                            <td>{{ p.items|length }} ítems</td>
+                            <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(p.items | sum(attribute='costo_total_item')).replace(',', '.') }}</td>
+                            <td>
+                                <form action="{{ url_for('main.eliminar_paquete', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar este paquete?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center py-4 text-muted">No hay planes o paquetes registrados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. CUENTAS POR COBRAR (CxC) -->
     <div class="tab-pane fade" id="tab-cxc">
         <div class="d-flex justify-content-between mb-3">
             <h5>Pagos a Recibir (Cuentas por Cobrar)</h5>
@@ -209,10 +256,7 @@
                             <td>{{ x.concepto }}</td>
                             <td><span class="badge bg-secondary">{{ x.moneda }}</span></td>
                             <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
-                            <td class="fw-bold text-success">
-                                {% if x.moneda == 'PYG' %}₲ {% elif x.moneda == 'USD' %}$ {% else %}R$ {% endif %}
-                                {{ "{:,.2f}".format(x.monto) }}
-                            </td>
+                            <td class="fw-bold text-success">₲ {{ "{:,.0f}".format(x.monto).replace(',', '.') }}</td>
                             <td>
                                 {% if x.estado == 'Pendiente' %}
                                 <span class="badge bg-warning text-dark">Pendiente</span>
@@ -231,50 +275,6 @@
                                 </div>
                             </td>
                         </tr>
-
-                        <!-- Modal Cobrar CxC -->
-                        <div class="modal fade" id="modalCobrar{{ x.id }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form action="{{ url_for('main.cobrar_cxc', id=x.id) }}" method="POST">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Cobrar: {{ x.concepto }}</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <p>Monto a cobrar: <strong class="text-success">{% if x.moneda == 'PYG' %}₲ {% elif x.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.2f}".format(x.monto) }}</strong></p>
-                                            <div class="mb-3">
-                                                <label class="form-label">Cuenta de Ingreso</label>
-                                                <select class="form-select" name="cuenta_id" required>
-                                                    {% for c in cuentas %}
-                                                    <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                            <hr>
-                                            <div class="form-check mb-3">
-                                                <input class="form-check-input" type="checkbox" name="usar_divisa" id="checkDivisa{{ x.id }}" onchange="document.getElementById('camposDivisa{{ x.id }}').style.display = this.checked ? 'block' : 'none';">
-                                                <label class="form-check-label fw-bold text-primary" for="checkDivisa{{ x.id }}">¿Paga en divisa / otra moneda (ej. Dólares)?</label>
-                                            </div>
-                                            <div id="camposDivisa{{ x.id }}" style="display: none;" class="p-3 bg-light rounded border">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Monto recibido en Dólares / Divisa</label>
-                                                    <input type="number" step="any" class="form-control" name="monto_divisa" placeholder="Ej: 50">
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Cotización del Día (Gs. por 1 USD)</label>
-                                                    <input type="number" step="any" class="form-control" name="cotizacion" placeholder="Ej: 7500">
-                                                </div>
-                                                <small class="text-muted">Si el valor convertido supera el monto, el excedente se registrará como <strong>Ganancia por Cambio</strong>.</small>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="submit" class="btn btn-success">Confirmar Cobro</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
                         {% else %}
                         <tr><td colspan="7" class="text-center py-4 text-muted">No hay cuentas por cobrar pendientes.</td></tr>
                         {% endfor %}
@@ -284,7 +284,7 @@
         </div>
     </div>
 
-    <!-- 6. CUENTAS A PAGAR (CxP) -->
+    <!-- 7. CUENTAS A PAGAR (CxP) -->
     <div class="tab-pane fade" id="tab-cxp">
         <div class="d-flex justify-content-between mb-3">
             <h5>Cuentas a Pagar</h5>
@@ -311,10 +311,7 @@
                             <td>{{ p.concepto }}</td>
                             <td><span class="badge bg-secondary">{{ p.moneda }}</span></td>
                             <td>{{ p.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
-                            <td class="fw-bold text-danger">
-                                {% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}
-                                {{ "{:,.2f}".format(p.monto) }}
-                            </td>
+                            <td class="fw-bold text-danger">₲ {{ "{:,.0f}".format(p.monto).replace(',', '.') }}</td>
                             <td>
                                 {% if p.estado == 'Pendiente' %}
                                 <span class="badge bg-warning text-dark">Pendiente</span>
@@ -333,34 +330,6 @@
                                 </div>
                             </td>
                         </tr>
-
-                        <!-- Modal Pagar CxP -->
-                        <div class="modal fade" id="modalPagar{{ p.id }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form action="{{ url_for('main.pagar_cxp', id=p.id) }}" method="POST">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Pagar: {{ p.concepto }}</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <p>Monto a pagar: <strong class="text-danger">{% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.2f}".format(p.monto) }}</strong></p>
-                                            <div class="mb-3">
-                                                <label class="form-label">Cuenta de Salida (Moneda: {{ p.moneda }})</label>
-                                                <select class="form-select" name="cuenta_id" required>
-                                                    {% for c in cuentas if c.moneda == p.moneda %}
-                                                    <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="submit" class="btn btn-danger">Confirmar Pago</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
                         {% else %}
                         <tr><td colspan="7" class="text-center py-4 text-muted">No hay cuentas a pagar registradas.</td></tr>
                         {% endfor %}
@@ -370,7 +339,7 @@
         </div>
     </div>
 
-    <!-- 7. CATEGORÍAS -->
+    <!-- 8. CATEGORÍAS -->
     <div class="tab-pane fade" id="tab-categorias">
         <div class="d-flex justify-content-between mb-3">
             <h5>Categorías</h5>
@@ -400,7 +369,7 @@
         </div>
     </div>
 
-    <!-- 8. CENTROS DE COSTO -->
+    <!-- 9. CENTROS DE COSTO -->
     <div class="tab-pane fade" id="tab-centros">
         <div class="d-flex justify-content-between mb-3">
             <h5>Centros de Costo</h5>
@@ -460,7 +429,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Color Distintivo</label>
-                        <input type="color" class="form-control form-control-color w-100" name="color" value="#17b978" title="Elige un color para identificar la cuenta">
+                        <input type="color" class="form-control form-control-color w-100" name="color" value="#17b978">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -547,29 +516,111 @@
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_servicio') }}" method="POST">
                 <div class="modal-header">
-                    <h5 class="modal-title">Nuevo Servicio / Paquete</h5>
+                    <h5 class="modal-title">Nuevo Servicio Individual</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Nombre del Servicio</label>
-                        <input type="text" class="form-control" name="nombre" required placeholder="Ej: Consulta General">
+                        <input type="text" class="form-control" name="nombre" required placeholder="Ej: Consulta Metabólica">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Moneda</label>
+                            <select class="form-select" name="moneda">
+                                <option value="PYG">PYG (₲)</option>
+                                <option value="USD">USD ($)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Precio de Venta (Opcional)</label>
+                            <input type="number" step="any" class="form-control" name="precio" value="0">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Costo Unitario (Gs.)</label>
+                            <input type="number" step="any" class="form-control" name="costo_unitario" value="0" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Reparto Adicional (%)</label>
+                            <input type="number" step="any" class="form-control" name="reparto_adicional" value="0" placeholder="Ej: 50 para nutricionista">
+                        </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Moneda</label>
-                        <select class="form-select" name="moneda">
-                            <option value="PYG">PYG (₲)</option>
-                            <option value="USD">USD ($)</option>
-                            <option value="BRL">BRL (R$)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Precio</label>
-                        <input type="number" step="any" class="form-control" name="precio" required placeholder="150000">
+                        <label class="form-label">Profesional Asociado</label>
+                        <input type="text" class="form-control" name="profesional_asociado" placeholder="Ej: Nutricionista / Dra. Romina">
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary">Guardar Servicio</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Paquete / Plan (Alineado al manual) -->
+<div class="modal fade" id="modalPaquete" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="{{ url_for('main.agregar_paquete') }}" method="POST">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-boxes me-2"></i> Nuevo Plan o Paquete Médico</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Nombre del Plan</label>
+                            <input type="text" class="form-control" name="nombre" required placeholder="Ej: Programa Metabolismo">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Precio Total (IVA Incl.)</label>
+                            <input type="number" step="any" class="form-control" name="precio" required placeholder="28780000">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Duración (Meses)</label>
+                            <input type="number" class="form-control" name="duracion_meses" value="4" required>
+                        </div>
+                    </div>
+                    
+                    <h6 class="fw-bold text-secondary mt-3 mb-2">Composición del Paquete (Ítems de Servicios)</h6>
+                    <p class="text-muted small">Selecciona los servicios del catálogo, la cantidad y el costo se calculará automáticamente.</p>
+                    
+                    <div id="contenedor-items-paquete">
+                        <div class="row item-row mb-2 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label small">Servicio</label>
+                                <select name="servicio_id[]" class="form-select form-select-sm" required>
+                                    <option value="">Seleccione servicio...</option>
+                                    {% for s in servicios %}
+                                    <option value="{{ s.id }}">{{ s.name if s.name else s.nombre }} (Costo: ₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Cantidad</label>
+                                <input type="number" name="cantidad[]" class="form-control form-control-sm" value="1" min="1" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Costo Unit.</label>
+                                <input type="number" name="costo_unitario[]" class="form-control form-control-sm" value="0" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Reparto %</label>
+                                <input type="number" name="reparto_adicional[]" class="form-control form-control-sm" value="0">
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="agregarFilaItem()"><i class="fa-solid fa-plus me-1"></i> Agregar otro ítem</button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold">Guardar Paquete</button>
                 </div>
             </form>
         </div>
@@ -604,16 +655,6 @@
                         <select class="form-select" name="moneda">
                             <option value="PYG">PYG (₲)</option>
                             <option value="USD">USD ($)</option>
-                            <option value="BRL">BRL (R$)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Método de Pago Esperado</label>
-                        <select class="form-select" name="metodo_pago">
-                            <option value="Efectivo">Efectivo</option>
-                            <option value="Transferencia">Transferencia</option>
-                            <option value="Tarjeta">Tarjeta</option>
-                            <option value="POS">POS</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -626,7 +667,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Cuenta por Cobrar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
                 </div>
             </form>
         </div>
@@ -649,22 +690,12 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Concepto</label>
-                        <input type="text" class="form-control" name="concepto" required placeholder="Ej: Insumos médicos">
+                        <input type="text" class="form-control" name="concepto" required placeholder="Ej: Insumos">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Moneda</label>
                         <select class="form-select" name="moneda">
                             <option value="PYG">PYG (₲)</option>
-                            <option value="USD">USD ($)</option>
-                            <option value="BRL">BRL (R$)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Método de Pago</label>
-                        <select class="form-select" name="metodo_pago">
-                            <option value="Transferencia">Transferencia</option>
-                            <option value="Efectivo">Efectivo</option>
-                            <option value="Cheque">Cheque</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -677,7 +708,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Cuenta a Pagar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
                 </div>
             </form>
         </div>
@@ -707,7 +738,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Categoría</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
                 </div>
             </form>
         </div>
@@ -730,22 +761,29 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Centro</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- SCRIPT: APLICAR COLORES Y MANTENER PESTAÑA ACTIVA -->
 <script>
+function agregarFilaItem() {
+    const contenedor = document.getElementById('contenedor-items-paquete');
+    const primeraFila = contenedor.querySelector('.item-row');
+    const nuevaFila = primeraFila.cloneNode(true);
+    // Limpiar valores
+    nuevaFila.querySelectorAll('input').forEach(input => input.value = input.name.includes('cantidad') ? '1' : '0');
+    nuevaFila.querySelector('select').selectedIndex = 0;
+    contenedor.appendChild(nuevaFila);
+}
+
 document.addEventListener("DOMContentLoaded", function () {
-    // Aplicar colores de las cuentas sin errores de linter CSS
     document.querySelectorAll('.cuenta-dot').forEach(function(el) {
         el.style.backgroundColor = el.getAttribute('data-color');
     });
 
-    // Pestañas activas en Cadastros
     let activeTab = localStorage.getItem('activeCadastrosTab');
     if (activeTab) {
         let triggerEl = document.querySelector(`[data-bs-target="${activeTab}"]`);
