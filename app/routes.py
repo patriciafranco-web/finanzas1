@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, Response, flash
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
-from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio, User, Venta, DetalleVenta, Paquete, PaqueteItem, CuotaVenta
+from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio, User, Venta, DetalleVenta, Paquete, PaqueteItem, CuotaVenta, BloqueoPeriodo
 from datetime import datetime, time
 import csv
 from io import StringIO
@@ -100,6 +100,9 @@ def dashboard():
     centros_costo = CentroCosto.query.all()
     servicios = Servicio.query.all()
     clientes = Cliente.query.all()
+    
+    # Comprobar si hay período activo bloqueado
+    bloqueos_activos = BloqueoPeriodo.query.filter_by(estado='Bloqueado').all()
 
     return render_template('dashboard.html', 
                            transacciones=transacciones, 
@@ -109,12 +112,61 @@ def dashboard():
                            servicios=servicios,
                            clientes=clientes,
                            saldos=saldos,
+                           bloqueos_activos=bloqueos_activos,
                            selected_q=q,
                            selected_cuenta=cuenta_id,
                            selected_categoria=categoria_id,
                            selected_centro=centro_id,
                            selected_desde=fecha_desde_str,
                            selected_hasta=fecha_hasta_str)
+
+@bp.route('/bloqueos')
+@login_required
+def bloqueos_vista():
+    bloqueos = BloqueoPeriodo.query.order_by(BloqueoPeriodo.fecha_bloqueo.desc()).all()
+    cuentas = Cuenta.query.all()
+    return render_template('bloqueos.html', bloqueos=bloqueos, cuentas=cuentas)
+
+@bp.route('/bloquear-periodo', methods=['POST'])
+@login_required
+def bloquear_periodo():
+    periodo = request.form.get('periodo', 'Octubre 2026')
+    cuenta_id = request.form.get('cuenta_id')
+    cta_val = int(cuenta_id) if cuenta_id and cuenta_id != 'todas' else None
+    
+    nuevo_bloqueo = BloqueoPeriodo(
+        periodo=periodo,
+        cuenta_id=cta_val,
+        usuario=current_user.username if current_user else 'Administrador',
+        estado='Bloqueado'
+    )
+    db.session.add(nuevo_bloqueo)
+    db.session.commit()
+    flash('Período bloqueado correctamente.', 'success')
+    return redirect(url_for('main.dashboard'))
+
+@bp.route('/desbloquear-periodo/<int:id>', methods=['POST'])
+@login_required
+def desbloquear_periodo(id):
+    b = BloqueoPeriodo.query.get_or_404(id)
+    motivo = request.form.get('motivo', '')
+    b.estado = 'Liberado'
+    b.motivo_desbloqueo = motivo
+    db.session.commit()
+    flash('Período desbloqueado con éxito.', 'info')
+    return redirect(url_for('main.dashboard'))
+
+@bp.route('/desbloquear-todo', methods=['POST'])
+@login_required
+def desbloquear_todo():
+    motivo = request.form.get('motivo', '')
+    bloqueos = BloqueoPeriodo.query.filter_by(estado='Bloqueado').all()
+    for b in bloqueos:
+        b.estado = 'Liberado'
+        b.motivo_desbloqueo = motivo
+    db.session.commit()
+    flash('Todos los bloqueos han sido liberados.', 'warning')
+    return redirect(url_for('main.dashboard'))
 
 @bp.route('/ventas')
 @login_required
@@ -140,19 +192,11 @@ def agregar_venta_completa():
         paquete = Paquete.query.get_or_404(paquete_id)
         precio_total = paquete.precio
         
-        # 1. Cálculos automáticos exactos exigidos por el manual de la clínica
-        iva = precio_total / 11  # IVA = precio ÷ 11
-        
-        # Tarifa de pasarela (ej. 3.3% si es tarjeta de crédito)
+        # 1. Cálculos automáticos exactos exigidos por el manual de la clínica (IVA = precio ÷ 11)[cite: 8, 9]
+        iva = precio_total / 11 
         tarifa_pasarela = precio_total * 0.033 if 'Crédito' in forma_pago else 0.0
-        
-        # Costo total de los servicios que componen el paquete (incluyendo reparto adicional %)
         costo_servicios = sum(item.costo_total_item for item in paquete.items)
-        
-        # Margen de contribución
         margen_contribucion = precio_total - iva - tarifa_pasarela - costo_servicios
-        
-        # Costo fijo prorrateado por plan (ejemplo referencial ajustable)
         costo_fijo_plan = 9428.013  
         ganancia_plan = margen_contribucion - costo_fijo_plan
         
@@ -176,9 +220,9 @@ def agregar_venta_completa():
             ganancia_plan=ganancia_plan
         )
         db.session.add(venta)
-        db.session.flush() # Para obtener el ID de la venta
+        db.session.flush() 
         
-        # 2. Generación automática de cuotas en Cuentas por Cobrar (CxC)
+        # 2. Generación automática de cuotas en Cuentas por Cobrar (CxC)[cite: 11]
         monto_cuota = (precio_total - monto_pagado) / num_cuotas if num_cuotas > 0 else precio_total
         vencimientos_labels = ["Día de la venta", "1 mes después", "2 meses después", "3 meses después", "4 meses después"]
         
@@ -186,7 +230,6 @@ def agregar_venta_completa():
             label = vencimientos_labels[i-1] if (i-1) < len(vencimientos_labels) else f"{i-1} meses después"
             num_str = f"{i} de {num_cuotas}"
             
-            # Guardar cuota en la venta
             db.session.add(CuotaVenta(
                 venta_id=venta.id,
                 numero_cuota=num_str,
@@ -195,7 +238,6 @@ def agregar_venta_completa():
                 estado='Pendiente'
             ))
             
-            # Sincronizar con Cuentas por Cobrar (CxC)
             if cliente_id:
                 db.session.add(CuentaPorCobrar(
                     cliente_id=cliente_id,
@@ -277,8 +319,6 @@ def cadastros():
                            categorias=categorias,
                            centros_costo=centros_costo)
 
-# --- NUEVAS RUTAS PARA LA GESTIÓN DE PAQUETES / PLANES Y COMPOSICIÓN DE ÍTEMS ---
-
 @bp.route('/agregar-paquete', methods=['POST'])
 @login_required
 def agregar_paquete():
@@ -291,7 +331,6 @@ def agregar_paquete():
     db.session.add(paquete)
     db.session.flush()
     
-    # Recoger los ítems enviados desde el formulario dinámico
     servicio_ids = request.form.getlist('servicio_id[]')
     cantidades = request.form.getlist('cantidad[]')
     costos_unitarios = request.form.getlist('costo_unitario[]')
@@ -317,8 +356,6 @@ def eliminar_paquete(id):
     db.session.delete(p)
     db.session.commit()
     return redirect(url_for('main.cadastros'))
-
-# -----------------------------------------------------------------------------
 
 @bp.route('/cuentas-por-cobrar')
 @login_required
