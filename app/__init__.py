@@ -59,6 +59,13 @@ def create_app():
             admin = User(username='admin', rol='Gerente Financiera')
             admin.set_password('clinica2026')
             db.session.add(admin)
+
+        # --- CREAR USUARIO DE RECEPCIÓN AUTOMÁTICAMENTE ---
+        if not User.query.filter_by(username='recepcion').first():
+            recep = User(username='recepcion')
+            recep.set_password('123456')
+            db.session.add(recep)
+        # --------------------------------------------------
             
         # Crear categorías básicas si la tabla está vacía
         if not Categoria.query.first():
