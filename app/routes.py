@@ -13,7 +13,6 @@ def limpiar_monto(valor):
     if not valor:
         return 0.0
     try:
-        # Reemplazar puntos de miles y comas decimales si es necesario
         valor_limpio = str(valor).replace('.', '').replace(',', '.')
         return float(valor_limpio)
     except (ValueError, TypeError):
@@ -244,7 +243,6 @@ def agregar_venta_completa():
         precio_total += paquete.precio
         costo_servicios += sum(item.costo_total_item for item in paquete.items)
 
-    # --- Procesar Servicios Avulsos / Extras ---
     servicios_avulsos_ids = request.form.getlist('servicio_avulso_id[]')
     cantidades_avulsas = request.form.getlist('cantidad_avulso[]')
     
@@ -480,6 +478,19 @@ def agregar_categoria():
         flash('Categoría agregada con éxito.', 'success')
     return redirect(url_for('main.cadastros'))
 
+@bp.route('/editar-categoria/<int:id>', methods=['POST'])
+@login_required
+def editar_categoria(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
+    cat = Categoria.query.get_or_404(id)
+    cat.nombre = request.form.get('nombre')
+    cat.tipo = request.form.get('tipo', 'Ingreso')
+    db.session.commit()
+    flash('Categoría actualizada correctamente.', 'success')
+    return redirect(url_for('main.cadastros'))
+
 @bp.route('/agregar-centro-costo', methods=['POST'])
 @login_required
 def agregar_centro_costo():
@@ -491,6 +502,18 @@ def agregar_centro_costo():
         db.session.add(CentroCosto(nombre=nombre))
         db.session.commit()
         flash('Centro de costo agregado con éxito.', 'success')
+    return redirect(url_for('main.cadastros'))
+
+@bp.route('/editar-centro-costo/<int:id>', methods=['POST'])
+@login_required
+def editar_centro_costo(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
+    cc = CentroCosto.query.get_or_404(id)
+    cc.nombre = request.form.get('nombre')
+    db.session.commit()
+    flash('Centro de costo actualizado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-paquete', methods=['POST'])
@@ -907,6 +930,20 @@ def agregar_medico():
     db.session.add(Medico(nombre=nombre, especialidad=especialidad, porcentaje_medico=porcentaje_medico, porcentaje_clinica=porcentaje_clinica))
     db.session.commit()
     flash('Profesional médico agregado con éxito.', 'success')
+    return redirect(url_for('main.cadastros'))
+
+@bp.route('/editar-medico/<int:id>', methods=['POST'])
+@login_required
+def editar_medico(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
+    m = Medico.query.get_or_404(id)
+    m.nombre = request.form.get('nombre')
+    m.especialidad = request.form.get('especialidad')
+    m.porcentaje_medico = limpiar_monto(request.form.get('porcentaje_medico') or 70)
+    db.session.commit()
+    flash('Médico actualizado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-medico/<int:id>', methods=['POST'])
