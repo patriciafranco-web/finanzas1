@@ -221,7 +221,11 @@ def agregar_venta_completa():
     paquete_id = int(request.form.get('paquete_id')) if request.form.get('paquete_id') else None
     forma_pago = request.form.get('forma_pago', 'Efectivo/Transferencia')
     num_cuotas = int(request.form.get('num_cuotas') or 1)
-    monto_pagado = float(request.form.get('monto_pagado') or 0)
+    
+    # Limpiar puntos del campo de entrada formateado
+    monto_pagado_str = request.form.get('monto_pagado', '0').replace('.', '').replace(',', '')
+    monto_pagado = float(monto_pagado_str or 0)
+    
     cuenta_id = int(request.form.get('cuenta_id')) if request.form.get('cuenta_id') else None
     
     precio_total = 0.0
@@ -492,7 +496,11 @@ def agregar_paquete():
         return redirect(url_for('main.cadastros'))
     nombre = request.form.get('nombre')
     moneda = request.form.get('moneda', 'PYG')
-    precio = float(request.form.get('precio') or 0)
+    
+    # Limpiar puntos del campo de precio formateado
+    precio_str = request.form.get('precio', '0').replace('.', '').replace(',', '')
+    precio = float(precio_str or 0)
+    
     duracion_meses = int(request.form.get('duracion_meses') or 4)
     
     paquete = Paquete(nombre=nombre, moneda=moneda, precio=precio, duracion_meses=duracion_meses)
@@ -516,6 +524,43 @@ def agregar_paquete():
             
     db.session.commit()
     flash('Plan o paquete creado exitosamente.', 'success')
+    return redirect(url_for('main.cadastros'))
+
+@bp.route('/editar-paquete/<int:id>', methods=['POST'])
+@login_required
+def editar_paquete(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
+    p = Paquete.query.get_or_404(id)
+    p.nombre = request.form.get('nombre')
+    
+    # Limpiar puntos del precio formateado
+    precio_str = request.form.get('precio', '0').replace('.', '').replace(',', '')
+    p.precio = float(precio_str or 0)
+    
+    p.duracion_meses = int(request.form.get('duracion_meses') or 4)
+    
+    # Actualizar ítems del paquete
+    PaqueteItem.query.filter_by(paquete_id=p.id).delete()
+    
+    servicio_ids = request.form.getlist('servicio_id[]')
+    cantidades = request.form.getlist('cantidad[]')
+    costos_unitarios = request.form.getlist('costo_unitario[]')
+    repartos = request.form.getlist('reparto_adicional[]')
+    
+    for i in range(len(servicio_ids)):
+        if servicio_ids[i]:
+            db.session.add(PaqueteItem(
+                paquete_id=p.id,
+                servicio_id=int(servicio_ids[i]),
+                cantidad=int(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1,
+                costo_unitario=float(costos_unitarios[i]) if i < len(costos_unitarios) and costos_unitarios[i] else 0.0,
+                reparto_adicional=float(repartos[i]) if i < len(repartos) and repartos[i] else 0.0
+            ))
+            
+    db.session.commit()
+    flash('Plan o paquete actualizado exitosamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/eliminar-paquete/<int:id>', methods=['POST'])
