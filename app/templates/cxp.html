@@ -86,7 +86,7 @@
 <div class="modal fade" id="modalCxP" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form action="{{ url_for('main.agregar_cxp') }}" method="POST">
+            <form action="{{ url_for('main.agregar_cxp') }}" method="POST" onsubmit="limpiarFormatoCxP()">
                 <div class="modal-header">
                     <h5 class="modal-title">Crear Cuenta a Pagar</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -134,7 +134,8 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Monto *</label>
-                            <input type="number" step="any" class="form-control" name="monto" required placeholder="0.00">
+                            <input type="text" class="form-control moneda-input" id="inputMontoCxPVisual" required placeholder="1.000.000">
+                            <input type="hidden" name="monto" id="inputMontoCxPReal">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Fecha de Vencimiento *</label>
@@ -142,7 +143,7 @@
                         </div>
                     </div>
 
-                    <!-- SECCIÓN DE ANEXOS (Idéntica a la referencia de Nadia) -->
+                    <!-- SECCIÓN DE ANEXOS -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">Anexos / Comprobantes</label>
                         <div class="border border-dashed rounded p-4 text-center bg-light">
@@ -159,4 +160,31 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('moneda-input')) {
+        let valorLimpio = e.target.value.replace(/\D/g, '');
+        if (valorLimpio !== '') {
+            let numero = parseInt(valorLimpio, 10);
+            e.target.value = numero.toLocaleString('es-PY');
+            if(e.target.id === 'inputMontoCxPVisual') {
+                document.getElementById('inputMontoCxPReal').value = numero;
+            }
+        } else {
+            e.target.value = '';
+            if(e.target.id === 'inputMontoCxPVisual') {
+                document.getElementById('inputMontoCxPReal').value = '';
+            }
+        }
+    }
+});
+
+function limpiarFormatoCxP() {
+    let visual = document.getElementById('inputMontoCxPVisual');
+    if(visual) {
+        document.getElementById('inputMontoCxPReal').value = visual.value.replace(/\./g, '').replace(/,/g, '');
+    }
+}
+</script>
 {% endblock %}
