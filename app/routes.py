@@ -591,6 +591,79 @@ def cxp_vista():
     categorias = Categoria.query.filter_by(tipo='Salida').all()
     return render_template('cxp.html', cxp_list=cxp_list, cuentas=cuentas, categorias=categorias)
 
+@bp.route('/agregar-cxp', methods=['POST'])
+@login_required
+def agregar_cxp():
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cxp_vista'))
+    
+    proveedor = request.form.get('proveedor')
+    concepto = request.form.get('concepto')
+    categoria_id = int(request.form.get('categoria_id')) if request.form.get('categoria_id') else None
+    moneda = request.form.get('moneda', 'PYG')
+    metodo_pago = request.form.get('metodo_pago', 'Transferencia')
+    monto = limpiar_monto(request.form.get('monto') or 0)
+    fecha_venc_str = request.form.get('fecha_vencimiento')
+    fecha_vencimiento = datetime.strptime(fecha_venc_str, '%Y-%m-%d') if fecha_venc_str else datetime.utcnow()
+
+    if proveedor and monto > 0:
+        db.session.add(CuentaPorPagar(
+            proveedor=proveedor,
+            concepto=concepto,
+            categoria_id=categoria_id,
+            moneda=moneda,
+            metodo_pago=metodo_pago,
+            monto=monto,
+            fecha_factura=datetime.utcnow(),
+            fecha_vencimiento=fecha_vencimiento,
+            estado='Pendiente'
+        ))
+        db.session.commit()
+        flash('Cuenta a pagar registrada exitosamente.', 'success')
+        
+    return redirect(url_for('main.cxp_vista'))
+
+@bp.route('/pagar-cxp/<int:id>', methods=['POST'])
+@login_required
+def pagar_cxp(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cxp_vista'))
+    
+    cxp = CuentaPorPagar.query.get_or_404(id)
+    cuenta_id = int(request.form.get('cuenta_id')) if request.form.get('cuenta_id') else None
+    
+    if cuenta_id and cxp.estado != 'Pagado':
+        db.session.add(Transaccion(
+            descripcion=f"Pago CxP: {cxp.concepto} ({cxp.proveedor})",
+            tipo='Salida',
+            monto=cxp.monto,
+            cuenta_id=cuenta_id,
+            categoria_id=cxp.categoria_id,
+            metodo_pago=cxp.metodo_pago,
+            conciliado=False,
+            fecha=datetime.utcnow()
+        ))
+        cxp.estado = 'Pagado'
+        db.session.commit()
+        flash(f'Pago registrado correctamente para {cxp.proveedor}.', 'success')
+        
+    return redirect(url_for('main.cxp_vista'))
+
+@bp.route('/eliminar-cxp/<int:id>', methods=['POST'])
+@login_required
+def eliminar_cxp(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cxp_vista'))
+    
+    cxp = CuentaPorPagar.query.get_or_404(id)
+    db.session.delete(cxp)
+    db.session.commit()
+    flash('Cuenta a pagar eliminada correctamente.', 'success')
+    return redirect(url_for('main.cxp_vista'))
+
 @bp.route('/honorarios')
 @login_required
 def honorarios():
