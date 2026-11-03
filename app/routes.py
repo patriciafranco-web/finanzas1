@@ -397,7 +397,6 @@ def transferencia():
 @bp.route('/cadastros')
 @login_required
 def cadastros():
-    # Permitido tanto para admin como para recepcion (para gestionar clientes/pacientes)
     cuentas = Cuenta.query.all()
     clientes = Cliente.query.all()
     medicos = Medico.query.all()
@@ -421,6 +420,9 @@ def cadastros():
 @bp.route('/agregar-paquete', methods=['POST'])
 @login_required
 def agregar_paquete():
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado para crear paquetes.', 'danger')
+        return redirect(url_for('main.cadastros'))
     nombre = request.form.get('nombre')
     moneda = request.form.get('moneda', 'PYG')
     precio = float(request.form.get('precio') or 0)
@@ -452,6 +454,9 @@ def agregar_paquete():
 @bp.route('/eliminar-paquete/<int:id>', methods=['POST'])
 @login_required
 def eliminar_paquete(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     p = Paquete.query.get_or_404(id)
     db.session.delete(p)
     db.session.commit()
@@ -623,6 +628,9 @@ def eliminar_transaccion(id):
 @bp.route('/agregar-cuenta', methods=['POST'])
 @login_required
 def agregar_cuenta():
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     nombre = request.form.get('nombre')
     tipo_cuenta = request.form.get('tipo_cuenta')
     moneda = request.form.get('moneda')
@@ -636,6 +644,9 @@ def agregar_cuenta():
 @bp.route('/editar-cuenta/<int:id>', methods=['POST'])
 @login_required
 def editar_cuenta(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     c = Cuenta.query.get_or_404(id)
     c.nombre = request.form.get('nombre')
     c.tipo_cuenta = request.form.get('tipo_cuenta')
@@ -648,6 +659,9 @@ def editar_cuenta(id):
 @bp.route('/eliminar-cuenta/<int:id>', methods=['POST'])
 @login_required
 def eliminar_cuenta(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     c = Cuenta.query.get_or_404(id)
     db.session.delete(c)
     db.session.commit()
@@ -702,6 +716,9 @@ def eliminar_cliente(id):
 @bp.route('/agregar-medico', methods=['POST'])
 @login_required
 def agregar_medico():
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     nombre = request.form.get('nombre')
     especialidad = request.form.get('especialidad')
     porcentaje_medico = float(request.form.get('porcentaje_medico') or 70)
@@ -714,6 +731,9 @@ def agregar_medico():
 @bp.route('/eliminar-medico/<int:id>', methods=['POST'])
 @login_required
 def eliminar_medico(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     m = Medico.query.get_or_404(id)
     db.session.delete(m)
     db.session.commit()
@@ -723,6 +743,9 @@ def eliminar_medico(id):
 @bp.route('/agregar-servicio', methods=['POST'])
 @login_required
 def agregar_servicio():
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     codigo = request.form.get('codigo')
     nombre = request.form.get('nombre')
     descripcion = request.form.get('descripcion')
@@ -750,6 +773,9 @@ def agregar_servicio():
 @bp.route('/editar-servicio/<int:id>', methods=['POST'])
 @login_required
 def editar_servicio(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     s = Servicio.query.get_or_404(id)
     s.nombre = request.form.get('nombre')
     s.moneda = request.form.get('moneda')
@@ -764,6 +790,9 @@ def editar_servicio(id):
 @bp.route('/eliminar-servicio/<int:id>', methods=['POST'])
 @login_required
 def eliminar_servicio(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
     s = Servicio.query.get_or_404(id)
     en_uso = PaqueteItem.query.filter_by(servicio_id=id).first()
     if en_uso:
