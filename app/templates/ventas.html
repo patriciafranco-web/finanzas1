@@ -79,7 +79,7 @@
 <div class="modal fade" id="modalVenta" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
-            <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST">
+            <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST" onsubmit="limpiarFormatoVentas()">
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title fw-bold"><i class="fas fa-cash-register me-2"></i> Registrar Venta (Plan / Paquete o Servicios Avulsos)</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -158,7 +158,8 @@
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Entrada (Gs.)</label>
-                                    <input type="text" class="form-control moneda-input" name="monto_pagado" id="inputEntrada" value="0">
+                                    <input type="text" class="form-control moneda-input" id="inputEntradaVisual" value="0">
+                                    <input type="hidden" name="monto_pagado" id="inputEntradaReal" value="0">
                                 </div>
                             </div>
 
@@ -246,13 +247,28 @@ function agregarServicioAvulso() {
 // Formateador automático de puntos en miles para inputs de dinero
 document.addEventListener('input', function (e) {
     if (e.target.classList.contains('moneda-input')) {
-        let value = e.target.value.replace(/\D/g, '');
-        if (value) {
-            value = parseInt(value, 10).toLocaleString('es-PY');
+        let valorLimpio = e.target.value.replace(/\D/g, '');
+        if (valorLimpio !== '') {
+            let numero = parseInt(valorLimpio, 10);
+            e.target.value = numero.toLocaleString('es-PY');
+            if (e.target.id === 'inputEntradaVisual') {
+                document.getElementById('inputEntradaReal').value = numero;
+            }
+        } else {
+            e.target.value = '';
+            if (e.target.id === 'inputEntradaVisual') {
+                document.getElementById('inputEntradaReal').value = '0';
+            }
         }
-        e.target.value = value;
     }
 });
+
+function limpiarFormatoVentas() {
+    let visual = document.getElementById('inputEntradaVisual');
+    if (visual) {
+        document.getElementById('inputEntradaReal').value = visual.value.replace(/\./g, '').replace(/,/g, '') || '0';
+    }
+}
 
 function actualizarDatosPaquete(select) {
     let opt = select.options[select.selectedIndex];
