@@ -24,7 +24,6 @@
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-categorias" type="button">Categorías</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-centros" type="button">Centros de Costo</button></li>
     {% else %}
-    <!-- Si es recepción, solo ve la pestaña de Clientes activa por defecto -->
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-clientes" type="button">Clientes</button></li>
     {% endif %}
 </ul>
@@ -116,7 +115,7 @@
     </div>
     {% endif %}
 
-    <!-- 2. CLIENTES (Visible para Administrador y Recepción) -->
+    <!-- 2. CLIENTES -->
     <div class="tab-pane fade {% if current_user.username.lower() == 'recepcion' %}show active{% endif %}" id="tab-clientes">
         <div class="d-flex justify-content-between mb-3">
             <h5>Clientes y Pacientes</h5>
@@ -304,11 +303,82 @@
                             <td>{{ p.items|length }} ítems</td>
                             <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(p.items | sum(attribute='costo_total_item')).replace(',', '.') }}</td>
                             <td>
+                                <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarPaquete{{ p.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
                                 <form action="{{ url_for('main.eliminar_paquete', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este paquete?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
+
+                        <!-- Modal Editar Paquete -->
+                        <div class="modal fade" id="modalEditarPaquete{{ p.id }}" tabindex="-1">
+                            <div class="modal-dialog modal-xl">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('main.editar_paquete', id=p.id) }}" method="POST">
+                                        <div class="modal-header bg-primary text-white">
+                                            <h5 class="modal-title fw-bold">Editar Plan o Paquete: {{ p.nombre }}</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label fw-bold">Nombre del Plan</label>
+                                                    <input type="text" class="form-control" name="nombre" value="{{ p.nombre }}" required>
+                                                </div>
+                                                <div class="col-md-3 mb-3">
+                                                    <label class="form-label fw-bold">Precio Total (₲)</label>
+                                                    <input type="text" class="form-control moneda-input" name="precio" value="{{ '{:,.0f}'.format(p.precio).replace(',', '.') }}" required>
+                                                </div>
+                                                <div class="col-md-3 mb-3">
+                                                    <label class="form-label fw-bold">Duración (Meses)</label>
+                                                    <input type="number" class="form-control" name="duracion_meses" value="{{ p.duracion_meses }}" required>
+                                                </div>
+                                            </div>
+
+                                            <h6 class="fw-bold text-secondary mt-3 mb-2">Servicios Incluidos</h6>
+                                            <div class="row text-muted small fw-bold mb-1 px-1">
+                                                <div class="col-md-5">Servicio</div>
+                                                <div class="col-md-2">Cantidad</div>
+                                                <div class="col-md-2">Costo Unitario (₲)</div>
+                                                <div class="col-md-2">Reparto Adicional (%)</div>
+                                                <div class="col-md-1"></div>
+                                            </div>
+
+                                            <div class="contenedor-items-editar">
+                                                {% for item in p.items %}
+                                                <div class="row item-row mb-2 align-items-end">
+                                                    <div class="col-md-5">
+                                                        <select name="servicio_id[]" class="form-select form-select-sm" onchange="autocompletarCostoServicio(this)" required>
+                                                            <option value="">Seleccione servicio...</option>
+                                                            {% for s in servicios %}
+                                                            <option value="{{ s.id }}" data-costo="{{ s.costo_unitario or 0 }}" {% if s.id == item.servicio_id %}selected{% endif %}>{{ s.nombre }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <input type="number" name="cantidad[]" class="form-control form-control-sm" value="{{ item.cantidad }}" min="1" required>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <input type="number" step="any" name="costo_unitario[]" class="form-control form-control-sm costo-input" value="{{ item.costo_unitario }}" required>
+                                                    </div>
+                                                    <div class="col-md-2">
+                                                        <input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm" value="{{ item.reparto_adicional }}">
+                                                    </div>
+                                                    <div class="col-md-1">
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary fw-bold">Guardar Cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                         {% else %}
                         <tr><td colspan="6" class="text-center py-4 text-muted">No hay planes o paquetes registrados.</td></tr>
                         {% endfor %}
@@ -393,7 +463,7 @@
 </div>
 {% endif %}
 
-<!-- Modal Cliente (Disponible para admin y recepción) -->
+<!-- Modal Cliente -->
 <div class="modal fade" id="modalCliente" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -439,10 +509,10 @@
                     <div class="mb-3"><label class="form-label">Nombre del Servicio</label><input type="text" class="form-control" name="nombre" required placeholder="Ej: Consulta Metabólica"></div>
                     <div class="row">
                         <div class="col-md-6 mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG">PYG (₲)</option><option value="USD">USD ($)</option></select></div>
-                        <div class="col-md-6 mb-3"><label class="form-label">Precio de Venta</label><input type="number" step="any" class="form-control" name="precio" value="0"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Precio de Venta</label><input type="text" class="form-control moneda-input" name="precio" value="0"></div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3"><label class="form-label">Costo Unitario (Gs.)</label><input type="number" step="any" class="form-control" name="costo_unitario" value="0" required></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Costo Unitario (Gs.)</label><input type="text" class="form-control moneda-input" name="costo_unitario" value="0" required></div>
                         <div class="col-md-6 mb-3"><label class="form-label">Reparto Adicional (%)</label><input type="number" step="any" class="form-control" name="reparto_adicional" value="0"></div>
                     </div>
                 </div>
@@ -452,25 +522,46 @@
     </div>
 </div>
 
-<!-- Modal Paquete -->
+<!-- Modal Paquete (Con Encabezados y Autocompletado) -->
 <div class="modal fade" id="modalPaquete" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_paquete') }}" method="POST">
-                <div class="modal-header bg-success text-white"><h5 class="modal-title">Nuevo Plan o Paquete</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold">Nuevo Plan o Paquete</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3"><label class="form-label fw-bold">Nombre del Plan</label><input type="text" class="form-control" name="nombre" required placeholder="Programa Metabolismo"></div>
-                        <div class="col-md-3 mb-3"><label class="form-label fw-bold">Precio Total</label><input type="number" step="any" class="form-control" name="precio" required placeholder="28780000"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label fw-bold">Nombre del Plan</label><input type="text" class="form-control" name="nombre" required placeholder="Programa Reducido - PRP"></div>
+                        <div class="col-md-3 mb-3"><label class="form-label fw-bold">Precio Total (₲)</label><input type="text" class="form-control moneda-input" name="precio" required placeholder="1.000.000"></div>
                         <div class="col-md-3 mb-3"><label class="form-label fw-bold">Duración (Meses)</label><input type="number" class="form-control" name="duracion_meses" value="4" required></div>
                     </div>
+                    
                     <h6 class="fw-bold text-secondary mt-3 mb-2">Servicios Incluidos</h6>
+                    
+                    <!-- Encabezados de columnas -->
+                    <div class="row text-muted small fw-bold mb-1 px-1">
+                        <div class="col-md-5">Servicio</div>
+                        <div class="col-md-2">Cantidad</div>
+                        <div class="col-md-2">Costo Unitario (₲)</div>
+                        <div class="col-md-2">Reparto Adicional (%)</div>
+                        <div class="col-md-1"></div>
+                    </div>
+
                     <div id="contenedor-items-paquete">
                         <div class="row item-row mb-2 align-items-end">
-                            <div class="col-md-5"><select name="servicio_id[]" class="form-select form-select-sm" required><option value="">Seleccione servicio...</option>{% for s in servicios %}<option value="{{ s.id }}">{{ s.nombre }}</option>{% endfor %}</select></div>
+                            <div class="col-md-5">
+                                <select name="servicio_id[]" class="form-select form-select-sm" onchange="autocompletarCostoServicio(this)" required>
+                                    <option value="">Seleccione servicio...</option>
+                                    {% for s in servicios %}
+                                    <option value="{{ s.id }}" data-costo="{{ s.costo_unitario or 0 }}">{{ s.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                             <div class="col-md-2"><input type="number" name="cantidad[]" class="form-control form-control-sm" value="1" min="1" required></div>
-                            <div class="col-md-2"><input type="number" name="costo_unitario[]" class="form-control form-control-sm" value="0" required></div>
-                            <div class="col-md-2"><input type="number" name="reparto_adicional[]" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-2"><input type="number" step="any" name="costo_unitario[]" class="form-control form-control-sm costo-input" value="0" required></div>
+                            <div class="col-md-2"><input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button></div>
                         </div>
                     </div>
@@ -523,6 +614,27 @@ function agregarFilaItem() {
     nuevaFila.querySelector('select').selectedIndex = 0;
     contenedor.appendChild(nuevaFila);
 }
+
+function autocompletarCostoServicio(select) {
+    let opt = select.options[select.selectedIndex];
+    let costo = opt.getAttribute('data-costo') || 0;
+    let fila = select.closest('.item-row');
+    let inputCosto = fila.querySelector('.costo-input');
+    if (inputCosto) {
+        inputCosto.value = costo;
+    }
+}
+
+// Formateador automático de puntos en miles para inputs de dinero
+document.addEventListener('input', function (e) {
+    if (e.target.classList.contains('moneda-input')) {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value) {
+            value = parseInt(value, 10).toLocaleString('es-PY');
+        }
+        e.target.value = value;
+    }
+});
 
 document.addEventListener("DOMContentLoaded", function () {
     let activeTab = localStorage.getItem('activeCadastrosTab');
