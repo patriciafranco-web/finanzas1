@@ -397,8 +397,7 @@ def transferencia():
 @bp.route('/cadastros')
 @login_required
 def cadastros():
-    if current_user.username.lower() == 'recepcion':
-        return redirect(url_for('main.ventas_vista'))
+    # Permitido tanto para admin como para recepcion (para gestionar clientes/pacientes)
     cuentas = Cuenta.query.all()
     clientes = Cliente.query.all()
     medicos = Medico.query.all()
