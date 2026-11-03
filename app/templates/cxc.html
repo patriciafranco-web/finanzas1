@@ -92,18 +92,19 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Cotización del Día</label>
-                            <input type="number" step="any" class="form-control" name="cotizacion" id="inputCotizacion" value="1" oninput="calcularEquivalenteCobro()">
+                            <input type="text" class="form-control moneda-input" name="cotizacion" id="inputCotizacion" value="1" oninput="calcularEquivalenteCobro()">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Monto Recibido</label>
-                            <input type="number" step="any" class="form-control" name="monto_recibido" id="inputMontoRecibido" required oninput="calcularEquivalenteCobro()">
+                            <!-- Añadida la clase moneda-input para formatear puntos de miles -->
+                            <input type="text" class="form-control moneda-input" name="monto_recibido" id="inputMontoRecibido" required oninput="calcularEquivalenteCobro()">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Descuento Concedido (Opcional)</label>
-                            <input type="number" step="any" class="form-control" name="descuento" value="0" placeholder="0">
+                            <input type="text" class="form-control moneda-input" name="descuento" value="0" placeholder="0">
                             <small class="text-muted">Reduce el saldo sin generar dinero recibido.</small>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -148,31 +149,58 @@
 </div>
 
 <script>
+// Función auxiliar para formatear valores con puntos de miles (es-PY)
+function formatearConPuntos(input) {
+    let valorLimpio = input.value.replace(/\D/g, '');
+    if (valorLimpio === '') {
+        input.value = '';
+        return;
+    }
+    let numero = parseInt(valorLimpio, 10);
+    input.value = numero.toLocaleString('es-PY');
+}
+
+// Formateo automático al escribir en cualquier campo con clase moneda-input
+document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('moneda-input')) {
+        formatearConPuntos(e.target);
+        // Si cambia el monto recibido, recalcular equivalente
+        if(e.target.id === 'inputMontoRecibido' || e.target.id === 'inputCotizacion') {
+            calcularEquivalenteCobro();
+        }
+    }
+});
+
 function llenarModalCobro(button) {
     document.getElementById('cobroCxcId').value = button.getAttribute('data-id');
     document.getElementById('lblCobroConcepto').innerText = button.getAttribute('data-concepto');
     document.getElementById('lblCobroVencimiento').innerText = button.getAttribute('data-vencimiento');
     let saldo = parseFloat(button.getAttribute('data-saldo')) || 0;
     document.getElementById('lblCobroSaldo').innerText = '₲ ' + saldo.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('inputMontoRecibido').value = saldo;
+    
+    let inputMonto = document.getElementById('inputMontoRecibido');
+    inputMonto.value = saldo.toLocaleString('es-PY', {maximumFractionDigits: 0});
     calcularEquivalenteCobro();
 }
 
 function toggleMonedaCobro(select) {
     let cotiz = document.getElementById('inputCotizacion');
     if(select.value === 'PYG') {
-        cotiz.value = 1;
+        cotiz.value = '1';
         cotiz.readOnly = true;
     } else {
         cotiz.readOnly = false;
-        cotiz.value = select.value === 'USD' ? 7500 : 1400; 
+        cotiz.value = select.value === 'USD' ? '7.500' : '1.400'; 
     }
     calcularEquivalenteCobro();
 }
 
 function calcularEquivalenteCobro() {
-    let monto = parseFloat(document.getElementById('inputMontoRecibido').value) || 0;
-    let cotiz = parseFloat(document.getElementById('inputCotizacion').value) || 1;
+    let montoStr = document.getElementById('inputMontoRecibido').value.replace(/\./g, '').replace(/,/g, '');
+    let cotizStr = document.getElementById('inputCotizacion').value.replace(/\./g, '').replace(/,/g, '');
+    
+    let monto = parseFloat(montoStr) || 0;
+    let cotiz = parseFloat(cotizStr) || 1;
     let totalGs = monto * cotiz;
     document.getElementById('lblEquivalenteGs').innerText = totalGs.toLocaleString('es-PY', {maximumFractionDigits: 0});
 }
