@@ -3,12 +3,19 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h2>Cadastros y Registros Maestros</h2>
-        <p class="text-muted mb-0">Gestión de cuentas, clientes, médicos, servicios, paquetes, categorías y centros de costo</p>
+        <p class="text-muted mb-0">
+            {% if current_user.username.lower() == 'recepcion' %}
+            Gestión de Clientes y Pacientes
+            {% else %}
+            Gestión de cuentas, clientes, médicos, servicios, paquetes, categorías y centros de costo
+            {% endif %}
+        </p>
     </div>
 </div>
 
-<!-- Pestañas de Cadastros (Sin CxC ni CxP) -->
+<!-- Pestañas de Cadastros (Adaptadas para recepción o administrador) -->
 <ul class="nav nav-tabs mb-4" id="cadastrosTabs" role="tablist">
+    {% if current_user.username.lower() != 'recepcion' %}
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-cuentas" type="button">Cuentas</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-clientes" type="button">Clientes</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medicos" type="button">Médicos</button></li>
@@ -16,10 +23,15 @@
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-paquetes" type="button">Planos y Paquetes</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-categorias" type="button">Categorías</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-centros" type="button">Centros de Costo</button></li>
+    {% else %}
+    <!-- Si es recepción, solo ve la pestaña de Clientes activa por defecto -->
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-clientes" type="button">Clientes</button></li>
+    {% endif %}
 </ul>
 
 <div class="tab-content" id="cadastrosTabsContent">
     
+    {% if current_user.username.lower() != 'recepcion' %}
     <!-- 1. CUENTAS -->
     <div class="tab-pane fade show active" id="tab-cuentas">
         <div class="d-flex justify-content-between mb-3">
@@ -102,9 +114,10 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
-    <!-- 2. CLIENTES -->
-    <div class="tab-pane fade" id="tab-clientes">
+    <!-- 2. CLIENTES (Visible para Administrador y Recepción) -->
+    <div class="tab-pane fade {% if current_user.username.lower() == 'recepcion' %}show active{% endif %}" id="tab-clientes">
         <div class="d-flex justify-content-between mb-3">
             <h5>Clientes y Pacientes</h5>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCliente"><i class="fa-solid fa-plus me-1"></i> Nuevo Cliente</button>
@@ -180,6 +193,7 @@
         </div>
     </div>
 
+    {% if current_user.username.lower() != 'recepcion' %}
     <!-- 3. MÉDICOS -->
     <div class="tab-pane fade" id="tab-medicos">
         <div class="d-flex justify-content-between mb-3">
@@ -355,9 +369,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 
 <!-- ================= MODALES DE CREACIÓN ================= -->
+{% if current_user.username.lower() != 'recepcion' %}
 <!-- Modal Cuenta -->
 <div class="modal fade" id="modalCuenta" tabindex="-1">
     <div class="modal-dialog">
@@ -375,8 +391,9 @@
         </div>
     </div>
 </div>
+{% endif %}
 
-<!-- Modal Cliente -->
+<!-- Modal Cliente (Disponible para admin y recepción) -->
 <div class="modal fade" id="modalCliente" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -386,6 +403,7 @@
                     <div class="mb-3"><label class="form-label">Nombre Completo</label><input type="text" class="form-control" name="nombre" required placeholder="Ej: Juan Pérez"></div>
                     <div class="mb-3"><label class="form-label">Documento / C.I.</label><input type="text" class="form-control" name="documento"></div>
                     <div class="mb-3"><label class="form-label">Teléfono</label><input type="text" class="form-control" name="telefono"></div>
+                    <div class="mb-3"><label class="form-label">Email</label><input type="email" class="form-control" name="email"></div>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar Cliente</button></div>
             </form>
@@ -393,6 +411,7 @@
     </div>
 </div>
 
+{% if current_user.username.lower() != 'recepcion' %}
 <!-- Modal Médico -->
 <div class="modal fade" id="modalMedico" tabindex="-1">
     <div class="modal-dialog">
@@ -493,6 +512,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <script>
 function agregarFilaItem() {
