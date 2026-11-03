@@ -29,7 +29,7 @@
                 <tr>
                     <td>{{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '-' }}</td>
                     <td class="fw-bold">{{ v.cliente.nombre if v.cliente else 'Particular' }}</td>
-                    <td><span class="badge bg-info text-dark">{{ v.paquete.nombre if v.paquete else 'Venta General' }}</span></td>
+                    <td><span class="badge bg-info text-dark">{{ v.paquete.nombre if v.paquete else 'Venta General / Avulso' }}</span></td>
                     <td class="fw-bold">₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</td>
                     <td class="text-success fw-bold">₲ {{ "{:,.0f}".format(v.pagado or 0).replace(',', '.') }}</td>
                     <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(v.saldo or 0).replace(',', '.') }}</td>
@@ -81,7 +81,7 @@
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-cash-register me-2"></i> Registrar Venta de Plan o Paquete</h5>
+                    <h5 class="modal-title fw-bold"><i class="fas fa-cash-register me-2"></i> Registrar Venta (Plan / Paquete o Servicios Avulsos)</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -99,15 +99,46 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Plan / Paquete Médico</label>
-                                <select class="form-select" name="paquete_id" id="paqueteSelect" required onchange="actualizarDatosPaquete(this)">
-                                    <option value="">Seleccionar plan o paquete...</option>
+                                <label class="form-label fw-bold">Plan / Paquete Médico (Opcional)</label>
+                                <select class="form-select" name="paquete_id" id="paqueteSelect" onchange="actualizarDatosPaquete(this)">
+                                    <option value="">-- Ninguno (Solo servicios avulsos / sueltos) --</option>
                                     {% for p in paquetes %}
                                     <option value="{{ p.id }}" data-precio="{{ p.precio }}" data-duracion="{{ p.duracion_meses }}">
                                         {{ p.nombre }} ({{ p.duracion_meses }} meses) - ₲ {{ "{:,.0f}".format(p.precio).replace(',', '.') }}
                                     </option>
                                     {% endfor %}
                                 </select>
+                            </div>
+
+                            <hr class="my-3">
+
+                            <!-- Sección de Servicios Avulsos / Extras -->
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold mb-0 text-primary">Servicios Avulsos / Extras (Opcional)</label>
+                                <button type="button" class="btn btn-sm btn-outline-success" onclick="agregarServicioAvulso()">
+                                    <i class="fa-solid fa-plus me-1"></i> Agregar servicio avulso
+                                </button>
+                            </div>
+                            
+                            <div id="contenedor-servicios-avulsos" class="mb-3">
+                                <div class="row service-row mb-2 align-items-end bg-light p-2 rounded">
+                                    <div class="col-md-7">
+                                        <label class="form-label small text-muted mb-1">Servicio</label>
+                                        <select name="servicio_avulso_id[]" class="form-select form-select-sm">
+                                            <option value="">Seleccione servicio avulso...</option>
+                                            {% for s in servicios %}
+                                            <option value="{{ s.id }}">{{ s.nombre }} (₲ {{ "{:,.0f}".format(s.precio).replace(',', '.') }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small text-muted mb-1">Cantidad</label>
+                                        <input type="number" name="cantidad_avulso[]" class="form-control form-control-sm" value="1" min="1">
+                                    </div>
+                                    <div class="col-md-1 text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger mt-3" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="row">
@@ -123,7 +154,7 @@
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Nº de Cuotas</label>
-                                    <input type="number" class="form-control" name="num_cuotas" id="inputCuotas" value="4" min="1" max="12" required>
+                                    <input type="number" class="form-control" name="num_cuotas" id="inputCuotas" value="1" min="1" max="12" required>
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Entrada (Gs.)</label>
@@ -186,7 +217,7 @@
                                         <small id="lblPorcentajeMargen" class="opacity-75">0,0% del precio</small>
                                     </div>
                                     <p class="text-muted small mt-3 mb-0">
-                                        <i class="fas fa-info-circle me-1"></i> Estos valores se guardan en la venta con el costo, el IVA y la tarifa de ese día. Si el precio o el costo cambian después, esta venta no se modifica.
+                                        <i class="fas fa-info-circle me-1"></i> Estos valores se guardan en la venta con el costo, el IVA y la tarifa de ese día.
                                     </p>
                                 </div>
                             </div>
@@ -203,6 +234,15 @@
 </div>
 
 <script>
+function agregarServicioAvulso() {
+    const contenedor = document.getElementById('contenedor-servicios-avulsos');
+    const primeraFila = contenedor.querySelector('.service-row');
+    const nuevaFila = primeraFila.cloneNode(true);
+    nuevaFila.querySelector('select').selectedIndex = 0;
+    nuevaFila.querySelector('input').value = '1';
+    contenedor.appendChild(nuevaFila);
+}
+
 function actualizarDatosPaquete(select) {
     let opt = select.options[select.selectedIndex];
     let precio = parseFloat(opt.getAttribute('data-precio')) || 0;
@@ -211,7 +251,7 @@ function actualizarDatosPaquete(select) {
     let tarifa = precio * 0.033;
     let costoServicios = precio * 0.25;
     let margenContribucion = precio - iva - tarifa - costoServicios;
-    let costoFijoPlan = 0; // Configurado en 0 para que la gestora cargue los valores reales
+    let costoFijoPlan = 0; 
     let gananciaPlan = margenContribucion - costoFijoPlan;
     let porcMargen = precio > 0 ? (gananciaPlan / precio) * 100 : 0;
 
