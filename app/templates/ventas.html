@@ -158,7 +158,7 @@
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Entrada (Gs.)</label>
-                                    <input type="number" step="any" class="form-control" name="monto_pagado" id="inputEntrada" value="0">
+                                    <input type="text" class="form-control moneda-input" name="monto_pagado" id="inputEntrada" value="0">
                                 </div>
                             </div>
 
@@ -242,6 +242,17 @@ function agregarServicioAvulso() {
     nuevaFila.querySelector('input').value = '1';
     contenedor.appendChild(nuevaFila);
 }
+
+// Formateador automático de puntos en miles para inputs de dinero
+document.addEventListener('input', function (e) {
+    if (e.target.classList.contains('moneda-input')) {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value) {
+            value = parseInt(value, 10).toLocaleString('es-PY');
+        }
+        e.target.value = value;
+    }
+});
 
 function actualizarDatosPaquete(select) {
     let opt = select.options[select.selectedIndex];
