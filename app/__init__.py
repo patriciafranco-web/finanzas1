@@ -28,7 +28,11 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = 'main.login'
 
-    from app.models import User, Cuenta, Cliente, Medico, Servicio, Categoria, CentroCosto, Transaccion, CuentaPorCobrar, CuentaPorPagar, PrestacionServicio, Venta, DetalleVenta, Paquete, PaqueteItem, CuotaVenta
+    from app.models import (
+        User, Cuenta, Cliente, Medico, Servicio, Categoria, CentroCosto, 
+        Transaccion, CuentaPorCobrar, CuentaPorPagar, PrestacionServicio, 
+        Venta, DetalleVenta, Paquete, PaqueteItem, CuotaVenta, BloqueoPeriodo
+    )
 
     @login_manager.user_loader
     def load_user(user_id):
