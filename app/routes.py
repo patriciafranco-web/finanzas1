@@ -417,6 +417,20 @@ def cadastros():
                            categorias=categorias,
                            centros_costo=centros_costo)
 
+@bp.route('/agregar-categoria', methods=['POST'])
+@login_required
+def agregar_categoria():
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
+    nombre = request.form.get('nombre')
+    tipo = request.form.get('tipo', 'Ingreso')
+    if nombre:
+        db.session.add(Categoria(nombre=nombre, tipo=tipo))
+        db.session.commit()
+        flash('Categoría agregada con éxito.', 'success')
+    return redirect(url_for('main.cadastros'))
+
 @bp.route('/agregar-paquete', methods=['POST'])
 @login_required
 def agregar_paquete():
