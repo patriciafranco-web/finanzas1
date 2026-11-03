@@ -431,6 +431,19 @@ def agregar_categoria():
         flash('Categoría agregada con éxito.', 'success')
     return redirect(url_for('main.cadastros'))
 
+@bp.route('/agregar-centro-costo', methods=['POST'])
+@login_required
+def agregar_centro_costo():
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
+    nombre = request.form.get('nombre')
+    if nombre:
+        db.session.add(CentroCosto(nombre=nombre))
+        db.session.commit()
+        flash('Centro de costo agregado con éxito.', 'success')
+    return redirect(url_for('main.cadastros'))
+
 @bp.route('/agregar-paquete', methods=['POST'])
 @login_required
 def agregar_paquete():
