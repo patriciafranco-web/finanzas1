@@ -425,7 +425,8 @@
                                                         <input type="number" name="cantidad[]" class="form-control form-control-sm" value="{{ item.cantidad }}" min="1" required>
                                                     </div>
                                                     <div class="col-md-2">
-                                                        <input type="number" step="any" name="costo_unitario[]" class="form-control form-control-sm costo-input" value="{{ item.costo_unitario if item.costo_unitario > 0 else (item.servicio.costo_unitario if item.servicio else 0) }}" required>
+                                                        <!-- Se agregó la clase moneda-input aquí para formatear el costo unitario con puntos -->
+                                                        <input type="text" name="costo_unitario[]" class="form-control form-control-sm costo-input moneda-input" value="{{ '{:,.0f}'.format(item.costo_unitario if item.costo_unitario > 0 else (item.servicio.costo_unitario if item.servicio else 0)).replace(',', '.') }}" required>
                                                     </div>
                                                     <div class="col-md-2">
                                                         <input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm" value="{{ item.reparto_adicional }}">
@@ -695,7 +696,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2"><input type="number" name="cantidad[]" class="form-control form-control-sm" value="1" min="1" required></div>
-                            <div class="col-md-2"><input type="number" step="any" name="costo_unitario[]" class="form-control form-control-sm costo-input" value="0" required></div>
+                            <div class="col-md-2"><input type="text" name="costo_unitario[]" class="form-control form-control-sm costo-input moneda-input" value="0" required></div>
                             <div class="col-md-2"><input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm" value="0"></div>
                             <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button></div>
                         </div>
@@ -752,26 +753,39 @@ function agregarFilaItem() {
 
 function autocompletarCostoServicio(select) {
     let opt = select.options[select.selectedIndex];
-    let costo = opt.getAttribute('data-costo') || 0;
+    let costo = parseFloat(opt.getAttribute('data-costo')) || 0;
     let fila = select.closest('.item-row');
     let inputCosto = fila.querySelector('.costo-input');
     if (inputCosto) {
-        inputCosto.value = costo;
+        inputCosto.value = costo.toLocaleString('es-PY');
     }
 }
 
-// Formateador automático de puntos en miles para inputs de dinero
+// Formateador automático de puntos en miles para inputs de dinero y costos
+function formatearConPuntos(input) {
+    let valorLimpio = input.value.replace(/\D/g, '');
+    if (valorLimpio === '') {
+        input.value = '';
+        return;
+    }
+    let numero = parseInt(valorLimpio, 10);
+    input.value = numero.toLocaleString('es-PY');
+}
+
 document.addEventListener('input', function (e) {
-    if (e.target.classList.contains('moneda-input')) {
-        let value = e.target.value.replace(/\D/g, '');
-        if (value) {
-            value = parseInt(value, 10).toLocaleString('es-PY');
-        }
-        e.target.value = value;
+    if (e.target.classList.contains('moneda-input') || e.target.classList.contains('costo-input')) {
+        formatearConPuntos(e.target);
     }
 });
 
 document.addEventListener("DOMContentLoaded", function () {
+    // Formatear automáticamente todos los inputs numéricos al cargar la página o abrir modales
+    document.querySelectorAll('.moneda-input, .costo-input').forEach(function(input) {
+        if (input.value) {
+            formatearConPuntos(input);
+        }
+    });
+
     let activeTab = localStorage.getItem('activeCadastrosTab');
     if (activeTab) {
         let triggerEl = document.querySelector(`[data-bs-target="${activeTab}"]`);
