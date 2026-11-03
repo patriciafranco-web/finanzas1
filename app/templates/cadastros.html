@@ -219,11 +219,44 @@
                             <td><span class="badge bg-success">{{ m.porcentaje_medico }}%</span></td>
                             <td><span class="badge bg-primary">{{ m.porcentaje_clinica }}%</span></td>
                             <td>
+                                <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarMedico{{ m.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
                                 <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este médico?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
+
+                        <!-- Modal Editar Médico -->
+                        <div class="modal fade" id="modalEditarMedico{{ m.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('main.editar_medico', id=m.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Editar Médico</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Nombre del Médico</label>
+                                                <input type="text" class="form-control" name="nombre" value="{{ m.nombre }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Especialidad</label>
+                                                <input type="text" class="form-control" name="especialidad" value="{{ m.especialidad or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">% Participación Médico</label>
+                                                <input type="number" step="any" class="form-control" name="porcentaje_medico" value="{{ m.porcentaje_medico }}">
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                         {% else %}
                         <tr><td colspan="5" class="text-center py-4 text-muted">No hay médicos registrados.</td></tr>
                         {% endfor %}
@@ -261,11 +294,44 @@
                             <td>₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }}</td>
                             <td>{{ s.reparto_adicional or 0 }}%</td>
                             <td>
+                                <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarServicio{{ s.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
                                 <form action="{{ url_for('main.eliminar_servicio', id=s.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este servicio?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
+
+                        <!-- Modal Editar Servicio -->
+                        <div class="modal fade" id="modalEditarServicio{{ s.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('main.editar_servicio', id=s.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Editar Servicio</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Nombre del Servicio</label>
+                                                <input type="text" class="form-control" name="nombre" value="{{ s.nombre }}" required>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG" {% if s.moneda == 'PYG' %}selected{% endif %}>PYG (₲)</option><option value="USD" {% if s.moneda == 'USD' %}selected{% endif %}>USD ($)</option></select></div>
+                                                <div class="col-md-6 mb-3"><label class="form-label">Precio de Venta</label><input type="text" class="form-control moneda-input" name="precio" value="{{ '{:,.0f}'.format(s.precio).replace(',', '.') }}"></div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3"><label class="form-label">Costo Unitario (Gs.)</label><input type="text" class="form-control moneda-input" name="costo_unitario" value="{{ '{:,.0f}'.format(s.costo_unitario or 0).replace(',', '.') }}" required></div>
+                                                <div class="col-md-6 mb-3"><label class="form-label">Reparto Adicional (%)</label><input type="number" step="any" class="form-control" name="reparto_adicional" value="{{ s.reparto_adicional or 0 }}"></div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                         {% else %}
                         <tr><td colspan="6" class="text-center py-4 text-muted">No hay servicios registrados.</td></tr>
                         {% endfor %}
@@ -359,7 +425,7 @@
                                                         <input type="number" name="cantidad[]" class="form-control form-control-sm" value="{{ item.cantidad }}" min="1" required>
                                                     </div>
                                                     <div class="col-md-2">
-                                                        <input type="number" step="any" name="costo_unitario[]" class="form-control form-control-sm costo-input" value="{{ item.costo_unitario }}" required>
+                                                        <input type="number" step="any" name="costo_unitario[]" class="form-control form-control-sm costo-input" value="{{ item.costo_unitario if item.costo_unitario > 0 else (item.servicio.costo_unitario if item.servicio else 0) }}" required>
                                                     </div>
                                                     <div class="col-md-2">
                                                         <input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm" value="{{ item.reparto_adicional }}">
@@ -394,26 +460,61 @@
             <h5>Categorías</h5>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCategoria"><i class="fa-solid fa-plus me-1"></i> Nueva Categoría</button>
         </div>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card shadow-sm p-3 border-success">
-                    <h6 class="text-success fw-bold">Ingresos</h6>
-                    <ul class="list-group list-group-flush mt-2">
-                        {% for cat in categorias if cat.tipo == 'Ingreso' %}
-                        <li class="list-group-item">{{ cat.nombre }}</li>
+        <div class="card shadow-sm">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cat in categorias %}
+                        <tr>
+                            <td class="fw-bold">{{ cat.nombre }}</td>
+                            <td><span class="badge {% if cat.tipo == 'Ingreso' %}bg-success{% else %}bg-danger{% endif %}">{{ cat.tipo }}</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCat{{ cat.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
+                            </td>
+                        </tr>
+
+                        <!-- Modal Editar Categoría -->
+                        <div class="modal fade" id="modalEditarCat{{ cat.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('main.editar_categoria', id=cat.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Editar Categoría</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Nombre</label>
+                                                <input type="text" class="form-control" name="nombre" value="{{ cat.nombre }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Tipo</label>
+                                                <select class="form-select" name="tipo">
+                                                    <option value="Ingreso" {% if cat.tipo == 'Ingreso' %}selected{% endif %}>Ingreso</option>
+                                                    <option value="Salida" {% if cat.tipo == 'Salida' %}selected{% endif %}>Salida</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center py-4 text-muted">No hay categorías registradas.</td></tr>
                         {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card shadow-sm p-3 border-danger">
-                    <h6 class="text-danger fw-bold">Salidas</h6>
-                    <ul class="list-group list-group-flush mt-2">
-                        {% for cat in categorias if cat.tipo == 'Salida' %}
-                        <li class="list-group-item">{{ cat.nombre }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -427,12 +528,46 @@
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light"><tr><th>Nombre</th></tr></thead>
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {% for cc in centros_costo %}
-                        <tr><td class="fw-bold">{{ cc.nombre }}</td></tr>
+                        <tr>
+                            <td class="fw-bold">{{ cc.nombre }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCentro{{ cc.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
+                            </td>
+                        </tr>
+
+                        <!-- Modal Editar Centro de Costo -->
+                        <div class="modal fade" id="modalEditarCentro{{ cc.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <form action="{{ url_for('main.editar_centro_costo', id=cc.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Editar Centro de Costo</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">Nombre</label>
+                                                <input type="text" class="form-control" name="nombre" value="{{ cc.nombre }}" required>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                         {% else %}
-                        <tr><td class="text-center py-4 text-muted">No hay centros de costo registrados.</td></tr>
+                        <tr><td colspan="2" class="text-center py-4 text-muted">No hay centros de costo registrados.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
