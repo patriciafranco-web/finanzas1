@@ -32,8 +32,10 @@
 
                 <li class="nav-item"><a href="{{ url_for('main.ventas_vista') }}" class="nav-link {% if request.endpoint == 'main.ventas_vista' %}active{% endif %}"><i class="fa-solid fa-cash-register me-2"></i> Ventas</a></li>
 
-                {% if current_user.is_authenticated and current_user.username.lower() != 'recepcion' %}
+                <!-- Cadastros visible tanto para administrador como para recepción -->
                 <li class="nav-item"><a href="{{ url_for('main.cadastros') }}" class="nav-link {% if request.endpoint == 'main.cadastros' %}active{% endif %}"><i class="fa-solid fa-folder-open me-2"></i> Cadastros</a></li>
+
+                {% if current_user.is_authenticated and current_user.username.lower() != 'recepcion' %}
                 <li class="nav-item"><a href="{{ url_for('main.cxc_vista') }}" class="nav-link {% if request.endpoint == 'main.cxc_vista' %}active{% endif %}"><i class="fa-solid fa-hand-holding-dollar me-2"></i> Cuentas por Cobrar</a></li>
                 <li class="nav-item"><a href="{{ url_for('main.cxp_vista') }}" class="nav-link {% if request.endpoint == 'main.cxp_vista' %}active{% endif %}"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Cuentas a Pagar</a></li>
                 <li class="nav-item"><a href="{{ url_for('main.honorarios') }}" class="nav-link {% if request.endpoint == 'main.honorarios' %}active{% endif %}"><i class="fa-solid fa-user-doctor me-2"></i> Honorarios Médicos</a></li>
