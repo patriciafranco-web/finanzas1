@@ -8,7 +8,11 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(50), default='admin') # 'admin' o 'recepcion'
+    
+    # Propiedad dinámica para evitar errores de columnas faltantes en la base de datos
+    @property
+    def role(self):
+        return 'recepcion' if self.username.lower() == 'recepcion' else 'admin'
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -188,7 +192,7 @@ class CuotaVenta(db.Model):
     numero_cuota = db.Column(db.String(20), nullable=False) 
     vencimiento_label = db.Column(db.String(50), nullable=False) 
     valor = db.Column(db.Float, nullable=False)
-    estado = db.Column(db.String(20), default='Pendiente') # <--- Corregido aquí
+    estado = db.Column(db.String(20), default='Pendiente')
 
 class BloqueoPeriodo(db.Model):
     __tablename__ = 'bloqueo_periodo'
