@@ -17,6 +17,9 @@ def login():
         
         if user and user.check_password(password):
             login_user(user)
+            # Si el usuario es recepcionista (por rol o nombre de usuario), redirigir directo a Ventas
+            if getattr(user, 'role', '') == 'recepcion' or user.username.lower() == 'recepcion':
+                return redirect(url_for('main.ventas_vista'))
             return redirect(url_for('main.pyg'))
         else:
             flash('Usuario o contraseña incorrectos', 'danger')
@@ -32,6 +35,10 @@ def logout():
 @bp.route('/')
 @login_required
 def pyg():
+    # Restringir acceso a recepcionistas
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        return redirect(url_for('main.ventas_vista'))
+
     ventas = Venta.query.filter_by(estado='Pagada').all()
     total_ingresos_netos = sum((v.total - v.iva) for v in ventas)
     costo_total_servicios = sum(v.costo_servicios for v in ventas)
@@ -67,6 +74,10 @@ def pyg():
 @bp.route('/finanzas')
 @login_required
 def dashboard():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado a Finanzas.', 'danger')
+        return redirect(url_for('main.ventas_vista'))
+
     q = request.args.get('q', '')
     cuenta_id = request.args.get('cuenta_id', type=int)
     categoria_id = request.args.get('categoria_id', type=int)
@@ -148,6 +159,8 @@ def dashboard():
 @bp.route('/bloqueos')
 @login_required
 def bloqueos_vista():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        return redirect(url_for('main.ventas_vista'))
     bloqueos = BloqueoPeriodo.query.order_by(BloqueoPeriodo.fecha_bloqueo.desc()).all()
     cuentas = Cuenta.query.all()
     return render_template('bloqueos.html', bloqueos=bloqueos, cuentas=cuentas)
@@ -354,6 +367,8 @@ def registrar_cobro_avanzado():
 @bp.route('/transferencia', methods=['POST'])
 @login_required
 def transferencia():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        return redirect(url_for('main.ventas_vista'))
     cuenta_origen_id = int(request.form.get('cuenta_origen_id'))
     cuenta_destino_id = int(request.form.get('cuenta_destino_id'))
     monto = float(request.form.get('monto') or 0)
@@ -384,6 +399,9 @@ def transferencia():
 @bp.route('/cadastros')
 @login_required
 def cadastros():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado a Registros Maestros.', 'danger')
+        return redirect(url_for('main.ventas_vista'))
     cuentas = Cuenta.query.all()
     clientes = Cliente.query.all()
     medicos = Medico.query.all()
@@ -447,6 +465,8 @@ def eliminar_paquete(id):
 @bp.route('/cuentas-por-cobrar')
 @login_required
 def cxc_vista():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        return redirect(url_for('main.ventas_vista'))
     cxc_list = CuentaPorCobrar.query.all()
     clientes = Cliente.query.all()
     cuentas = Cuenta.query.all()
@@ -455,6 +475,8 @@ def cxc_vista():
 @bp.route('/cuentas-a-pagar')
 @login_required
 def cxp_vista():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        return redirect(url_for('main.ventas_vista'))
     cxp_list = CuentaPorPagar.query.all()
     cuentas = Cuenta.query.all()
     categorias = Categoria.query.filter_by(tipo='Salida').all()
@@ -463,6 +485,8 @@ def cxp_vista():
 @bp.route('/honorarios')
 @login_required
 def honorarios():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        return redirect(url_for('main.ventas_vista'))
     medicos = Medico.query.all()
     servicios = Servicio.query.all()
     clientes = Cliente.query.all()
@@ -517,6 +541,8 @@ def eliminar_prestacion(id):
 @bp.route('/flujo-proyectado')
 @login_required
 def flujo_proyectado():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        return redirect(url_for('main.ventas_vista'))
     cxc_pendientes = CuentaPorCobrar.query.filter_by(estado='Pendiente').all()
     cxp_pendientes = CuentaPorPagar.query.filter_by(estado='Pendiente').all()
     total_cxc = sum(x.monto for x in cxc_pendientes)
@@ -743,7 +769,6 @@ def editar_servicio(id):
 @login_required
 def eliminar_servicio(id):
     s = Servicio.query.get_or_404(id)
-    # Validar si el servicio está en uso en algún paquete
     en_uso = PaqueteItem.query.filter_by(servicio_id=id).first()
     if en_uso:
         flash('Un servicio que está dentro de un plan no se puede excluir. Primero hay que quitarlo del plan.', 'danger')
@@ -753,140 +778,11 @@ def eliminar_servicio(id):
         flash('Servicio eliminado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
-@bp.route('/agregar-cxc', methods=['POST'])
-@login_required
-def agregar_cxc():
-    cliente_id = int(request.form.get('cliente_id')) if request.form.get('cliente_id') else None
-    concepto = request.form.get('concepto')
-    moneda = request.form.get('moneda')
-    metodo_pago = request.form.get('metodo_pago', 'Efectivo')
-    monto = float(request.form.get('monto') or 0)
-    fecha_vencimiento = datetime.strptime(request.form.get('fecha_vencimiento'), '%Y-%m-%d') if request.form.get('fecha_vencimiento') else datetime.utcnow()
-    
-    db.session.add(CuentaPorCobrar(
-        cliente_id=cliente_id,
-        concepto=concepto,
-        moneda=moneda,
-        metodo_pago=metodo_pago,
-        monto=monto,
-        fecha_emision=datetime.utcnow(),
-        fecha_vencimiento=fecha_vencimiento,
-        estado='Pendiente'
-    ))
-    db.session.commit()
-    flash('Cuenta por cobrar agregada con éxito.', 'success')
-    return redirect(url_for('main.cxc_vista'))
-
-@bp.route('/eliminar-cxc/<int:id>', methods=['POST'])
-@login_required
-def eliminar_cxc(id):
-    x = CuentaPorCobrar.query.get_or_404(id)
-    db.session.delete(x)
-    db.session.commit()
-    flash('Cuenta por cobrar eliminada correctamente.', 'success')
-    return redirect(url_for('main.cxc_vista'))
-
-@bp.route('/cobrar-cxc/<int:id>', methods=['POST'])
-@login_required
-def cobrar_cxc(id):
-    x = CuentaPorCobrar.query.get_or_404(id)
-    cuenta_id = int(request.form.get('cuenta_id'))
-    x.estado = 'Pagado'
-    
-    db.session.add(Transaccion(
-        descripcion=f"Cobro CxC: {x.concepto}",
-        tipo='Ingreso',
-        monto=x.monto,
-        cuenta_id=cuenta_id,
-        cliente_id=x.cliente_id,
-        metodo_pago=x.metodo_pago,
-        conciliado=False,
-        fecha=datetime.utcnow(),
-        observacion="Cobro de cuenta por cobrar"
-    ))
-    db.session.commit()
-    flash('Cobro registrado y transacción generada con éxito.', 'success')
-    return redirect(url_for('main.cxc_vista'))
-
-@bp.route('/agregar-cxp', methods=['POST'])
-@login_required
-def agregar_cxp():
-    proveedor = request.form.get('proveedor')
-    concepto = request.form.get('concepto')
-    moneda = request.form.get('moneda')
-    metodo_pago = request.form.get('metodo_pago', 'Efectivo')
-    monto = float(request.form.get('monto') or 0)
-    categoria_id = int(request.form.get('categoria_id')) if request.form.get('categoria_id') else None
-    fecha_vencimiento = datetime.strptime(request.form.get('fecha_vencimiento'), '%Y-%m-%d') if request.form.get('fecha_vencimiento') else datetime.utcnow()
-    
-    db.session.add(CuentaPorPagar(
-        proveedor=proveedor,
-        concepto=concepto,
-        moneda=moneda,
-        metodo_pago=metodo_pago,
-        monto=monto,
-        categoria_id=categoria_id,
-        fecha_factura=datetime.utcnow(),
-        fecha_vencimiento=fecha_vencimiento,
-        estado='Pendiente'
-    ))
-    db.session.commit()
-    flash('Cuenta a pagar agregada con éxito.', 'success')
-    return redirect(url_for('main.cxp_vista'))
-
-@bp.route('/eliminar-cxp/<int:id>', methods=['POST'])
-@login_required
-def eliminar_cxp(id):
-    p = CuentaPorPagar.query.get_or_404(id)
-    db.session.delete(p)
-    db.session.commit()
-    flash('Cuenta a pagar eliminada correctamente.', 'success')
-    return redirect(url_for('main.cxp_vista'))
-
-@bp.route('/pagar-cxp/<int:id>', methods=['POST'])
-@login_required
-def pagar_cxp(id):
-    p = CuentaPorPagar.query.get_or_404(id)
-    cuenta_id = int(request.form.get('cuenta_id'))
-    p.estado = 'Pagado'
-    
-    db.session.add(Transaccion(
-        descripcion=f"Pago CxP: {p.concepto} - {p.proveedor}",
-        tipo='Salida',
-        monto=p.monto,
-        cuenta_id=cuenta_id,
-        categoria_id=p.categoria_id,
-        metodo_pago=p.metodo_pago,
-        conciliado=False,
-        fecha=datetime.utcnow(),
-        observacion="Pago de cuenta a pagar"
-    ))
-    db.session.commit()
-    flash('Pago registrado con éxito.', 'success')
-    return redirect(url_for('main.cxp_vista'))
-
-@bp.route('/agregar-categoria', methods=['POST'])
-@login_required
-def agregar_categoria():
-    nombre = request.form.get('nombre')
-    tipo = request.form.get('tipo')
-    db.session.add(Categoria(nombre=nombre, tipo=tipo))
-    db.session.commit()
-    flash('Categoría creada correctamente.', 'success')
-    return redirect(url_for('main.cadastros'))
-
-@bp.route('/agregar-centro-costo', methods=['POST'])
-@login_required
-def agregar_centro_costo():
-    nombre = request.form.get('nombre')
-    db.session.add(CentroCosto(nombre=nombre))
-    db.session.commit()
-    flash('Centro de costo agregado con éxito.', 'success')
-    return redirect(url_for('main.cadastros'))
-
 @bp.route('/exportar-excel')
 @login_required
 def exportar_excel():
+    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+        return redirect(url_for('main.ventas_vista'))
     transacciones = Transaccion.query.order_by(Transaccion.fecha.desc()).all()
     si = StringIO()
     cw = csv.writer(si, delimiter=';')
