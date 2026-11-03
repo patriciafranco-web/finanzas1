@@ -17,8 +17,8 @@ def login():
         
         if user and user.check_password(password):
             login_user(user)
-            # Si el usuario es recepcionista (por rol o nombre de usuario), redirigir directo a Ventas
-            if getattr(user, 'role', '') == 'recepcion' or user.username.lower() == 'recepcion':
+            # Si el usuario es recepcion, redirigir directo a Ventas
+            if user.username.lower() == 'recepcion':
                 return redirect(url_for('main.ventas_vista'))
             return redirect(url_for('main.pyg'))
         else:
@@ -35,8 +35,7 @@ def logout():
 @bp.route('/')
 @login_required
 def pyg():
-    # Restringir acceso a recepcionistas
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
 
     ventas = Venta.query.filter_by(estado='Pagada').all()
@@ -74,8 +73,7 @@ def pyg():
 @bp.route('/finanzas')
 @login_required
 def dashboard():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
-        flash('Acceso no autorizado a Finanzas.', 'danger')
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
 
     q = request.args.get('q', '')
@@ -159,7 +157,7 @@ def dashboard():
 @bp.route('/bloqueos')
 @login_required
 def bloqueos_vista():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
     bloqueos = BloqueoPeriodo.query.order_by(BloqueoPeriodo.fecha_bloqueo.desc()).all()
     cuentas = Cuenta.query.all()
@@ -367,7 +365,7 @@ def registrar_cobro_avanzado():
 @bp.route('/transferencia', methods=['POST'])
 @login_required
 def transferencia():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
     cuenta_origen_id = int(request.form.get('cuenta_origen_id'))
     cuenta_destino_id = int(request.form.get('cuenta_destino_id'))
@@ -399,8 +397,7 @@ def transferencia():
 @bp.route('/cadastros')
 @login_required
 def cadastros():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
-        flash('Acceso no autorizado a Registros Maestros.', 'danger')
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
     cuentas = Cuenta.query.all()
     clientes = Cliente.query.all()
@@ -465,7 +462,7 @@ def eliminar_paquete(id):
 @bp.route('/cuentas-por-cobrar')
 @login_required
 def cxc_vista():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
     cxc_list = CuentaPorCobrar.query.all()
     clientes = Cliente.query.all()
@@ -475,7 +472,7 @@ def cxc_vista():
 @bp.route('/cuentas-a-pagar')
 @login_required
 def cxp_vista():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
     cxp_list = CuentaPorPagar.query.all()
     cuentas = Cuenta.query.all()
@@ -485,7 +482,7 @@ def cxp_vista():
 @bp.route('/honorarios')
 @login_required
 def honorarios():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
     medicos = Medico.query.all()
     servicios = Servicio.query.all()
@@ -541,7 +538,7 @@ def eliminar_prestacion(id):
 @bp.route('/flujo-proyectado')
 @login_required
 def flujo_proyectado():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
     cxc_pendientes = CuentaPorCobrar.query.filter_by(estado='Pendiente').all()
     cxp_pendientes = CuentaPorPagar.query.filter_by(estado='Pendiente').all()
@@ -781,7 +778,7 @@ def eliminar_servicio(id):
 @bp.route('/exportar-excel')
 @login_required
 def exportar_excel():
-    if getattr(current_user, 'role', '') == 'recepcion' or current_user.username.lower() == 'recepcion':
+    if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
     transacciones = Transaccion.query.order_by(Transaccion.fecha.desc()).all()
     si = StringIO()
