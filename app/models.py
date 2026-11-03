@@ -188,7 +188,7 @@ class CuotaVenta(db.Model):
     numero_cuota = db.Column(db.String(20), nullable=False) 
     vencimiento_label = db.Column(db.String(50), nullable=False) 
     valor = db.Column(db.Float, nullable=False)
-    estado = db.Command = db.Column(db.String(20), default='Pendiente')
+    estado = db.Column(db.String(20), default='Pendiente') # <--- Corregido aquí
 
 class BloqueoPeriodo(db.Model):
     __tablename__ = 'bloqueo_periodo'
