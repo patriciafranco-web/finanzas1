@@ -224,13 +224,33 @@ def agregar_venta_completa():
     monto_pagado = float(request.form.get('monto_pagado') or 0)
     cuenta_id = int(request.form.get('cuenta_id')) if request.form.get('cuenta_id') else None
     
+    precio_total = 0.0
+    costo_servicios = 0.0
+    paquete = None
+    
     if paquete_id:
         paquete = Paquete.query.get_or_404(paquete_id)
-        precio_total = paquete.precio
-        
+        precio_total += paquete.precio
+        costo_servicios += sum(item.costo_total_item for item in paquete.items)
+
+    # --- Procesar Servicios Avulsos / Extras ---
+    servicios_avulsos_ids = request.form.getlist('servicio_avulso_id[]')
+    cantidades_avulsas = request.form.getlist('cantidad_avulso[]')
+    
+    avulsos_seleccionados = []
+    for i in range(len(servicios_avulsos_ids)):
+        if servicios_avulsos_ids[i]:
+            srv_id = int(servicios_avulsos_ids[i])
+            cant = int(cantidades_avulsas[i]) if i < len(cantidades_avulsas) and cantidades_avulsas[i] else 1
+            srv = Servicio.query.get(srv_id)
+            if srv:
+                precio_total += srv.precio * cant
+                costo_servicios += (srv.costo_unitario or 0) * cant
+                avulsos_seleccionados.append({'servicio': srv, 'cantidad': cant})
+
+    if precio_total > 0:
         iva = precio_total / 11 
         tarifa_pasarela = precio_total * 0.033 if 'Crédito' in forma_pago else 0.0
-        costo_servicios = sum(item.costo_total_item for item in paquete.items)
         margen_contribucion = precio_total - iva - tarifa_pasarela - costo_servicios
         costo_fijo_plan = 0.0  
         ganancia_plan = margen_contribucion - costo_fijo_plan
@@ -238,10 +258,19 @@ def agregar_venta_completa():
         saldo = precio_total - monto_pagado
         estado = 'Pagada' if saldo <= 0 else ('Parcial' if monto_pagado > 0 else 'Pendiente')
         
+        # Construir descripción del concepto de la venta
+        conceptos_desc = []
+        if paquete:
+            conceptos_desc.append(paquete.nombre)
+        if avulsos_seleccionados:
+            nombres_avulsos = ", ".join([f"{item['cantidad']}x {item['servicio'].nombre}" for item in avulsos_seleccionados])
+            conceptos_desc.append(f"Avulsos: {nombres_avulsos}")
+        concepto_venta = " + ".join(conceptos_desc) if conceptos_desc else "Venta General"
+
         venta = Venta(
             fecha=datetime.utcnow(),
             cliente_id=cliente_id,
-            paquete_id=paquete.id,
+            paquete_id=paquete.id if paquete else None,
             subtotal=precio_total,
             total=precio_total,
             pagado=monto_pagado,
@@ -257,6 +286,16 @@ def agregar_venta_completa():
         db.session.add(venta)
         db.session.flush() 
         
+        # Guardar detalles de servicios avulsos si existen
+        for item in avulsos_seleccionados:
+            db.session.add(DetalleVenta(
+                venta_id=venta.id,
+                servicio_id=item['servicio'].id,
+                cantidad=item['cantidad'],
+                precio_unitario=item['servicio'].precio,
+                subtotal=item['servicio'].precio * item['cantidad']
+            ))
+
         monto_cuota = (precio_total - monto_pagado) / num_cuotas if num_cuotas > 0 else precio_total
         vencimientos_labels = ["Día de la venta", "1 mes después", "2 meses después", "3 meses después", "4 meses después"]
         
@@ -275,7 +314,7 @@ def agregar_venta_completa():
             if cliente_id:
                 db.session.add(CuentaPorCobrar(
                     cliente_id=cliente_id,
-                    concepto=f"Cuota {num_str} - {paquete.nombre} (Venta #{venta.id})",
+                    concepto=f"Cuota {num_str} - {concepto_venta} (Venta #{venta.id})",
                     moneda='PYG',
                     metodo_pago=forma_pago,
                     monto=monto_cuota,
@@ -286,7 +325,7 @@ def agregar_venta_completa():
         
         if monto_pagado > 0 and cuenta_id:
             db.session.add(Transaccion(
-                descripcion=f"Pago inicial Venta #{venta.id} - {paquete.nombre}",
+                descripcion=f"Pago inicial Venta #{venta.id} - {concepto_venta}",
                 tipo='Ingreso',
                 monto=monto_pagado,
                 cuenta_id=cuenta_id,
@@ -297,7 +336,7 @@ def agregar_venta_completa():
             ))
             
         db.session.commit()
-        flash('Venta registrada exitosamente con generación de cuotas.', 'success')
+        flash('Venta registrada exitosamente con plan y/o servicios avulsos.', 'success')
         
     return redirect(url_for('main.ventas_vista'))
 
@@ -321,7 +360,8 @@ def excluir_venta(id):
         flash(f'No se puede excluir la venta #{v.id} porque tiene cobros registrados. Para dejarla sin efecto conserve el historial usando "Cancelar venta".', 'danger')
     else:
         for cuota in v.cuotas:
-            cxc_rel = CuentaPorCobrar.query.filter_by(concepto=f"Cuota {cuota.numero_cuota} - {v.paquete.nombre if v.paquete else 'Plan'} (Venta #{v.id})").first()
+            nombre_paq = v.paquete.nombre if v.paquete else 'Plan'
+            cxc_rel = CuentaPorCobrar.query.filter_by(concepto=f"Cuota {cuota.numero_cuota} - {nombre_paq} (Venta #{v.id})").first()
             if cxc_rel:
                 db.session.delete(cxc_rel)
         db.session.delete(v)
