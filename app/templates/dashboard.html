@@ -96,16 +96,12 @@
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print();"><i class="fa-solid fa-file-pdf text-danger me-1"></i> PDF</button>
             <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-file-excel me-1"></i> Excel</a>
             
-            <!-- Botón Plantilla Excel -->
             <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-info btn-sm"><i class="fa-solid fa-file-arrow-down me-1"></i> Plantilla</a>
             
-            <!-- Botón Importar -->
             <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#modalImportar"><i class="fa-solid fa-file-arrow-up me-1"></i> Importar</button>
             
-            <!-- Botón Bloquear Período / Ir a Bloqueos -->
             <a href="{{ url_for('main.bloqueos_vista') }}" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-lock me-1"></i> Bloqueos</a>
 
-            <!-- Transferencia y Nueva Transacción -->
             <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalTransferencia"><i class="fa-solid fa-right-left me-1"></i> Transferência</button>
             <button type="button" class="btn btn-primary btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#modalTransaccion" {% if bloqueos_activos %}disabled title="Período bloqueado"{% endif %}><i class="fa-solid fa-plus me-1"></i> Nueva Transacción</button>
         </div>
@@ -162,38 +158,6 @@
     </div>
 </div>
 
-<!-- MODAL IMPORTAR TRANSACCIONES -->
-<div class="modal fade" id="modalImportar" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title fw-bold"><i class="fa-solid fa-file-excel me-2"></i> Importar transacciones desde Excel</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <ol class="mb-4">
-                    <li class="fw-bold mb-1">Descargar la plantilla oficial:</li>
-                    <p class="text-muted small mb-2">Complete el modelo con una fila por transacción y no cambie los nombres de las columnas.</p>
-                    <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-sm btn-outline-success mb-3"><i class="fa-solid fa-download me-1"></i> Descargar plantilla (.xlsx)</a>
-
-                    <li class="fw-bold mb-1">Subir el archivo completado:</li>
-                    <div class="input-group mb-3">
-                        <input type="file" class="form-control" id="inputGroupFile02">
-                        <label class="input-group-text" for="inputGroupFile02">Examinar</label>
-                    </div>
-
-                    <li class="fw-bold mb-1">Revisar antes de importar:</li>
-                    <p class="text-muted small mb-0">El sistema validará cuentas, categorías y fechas bloqueadas automáticamente antes de procesar los datos.</p>
-                </ol>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="alert('Funcionalidad de validación previa activa.');">Validar e Importar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- MODAL NUEVA TRANSACCIÓN -->
 <div class="modal fade" id="modalTransaccion" tabindex="-1">
     <div class="modal-dialog">
@@ -219,7 +183,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Monto (Gs.)</label>
-                        <input type="text" class="form-control" id="inputMontoTransaccionVisual" required placeholder="150.000" oninput="formatearMontoGs(this)">
+                        <input type="text" class="form-control moneda-input" id="inputMontoTransaccionVisual" required placeholder="150.000">
                         <input type="hidden" name="monto" id="inputMontoTransaccionReal">
                     </div>
                     <div class="mb-3">
@@ -298,12 +262,12 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Monto a Transferir (Gs.)</label>
-                        <input type="text" class="form-control" id="inputMontoTransfVisual" required placeholder="500.000" oninput="formatearMontoGs(this)">
+                        <input type="text" class="form-control moneda-input" id="inputMontoTransfVisual" required placeholder="500.000">
                         <input type="hidden" name="monto" id="inputMontoTransfReal">
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-primary">Realizar Transferencia</button>
+                    <button type="submit" class="btn btn-primary">Realizar Transferencia</button>
                 </div>
             </form>
         </div>
@@ -311,6 +275,44 @@
 </div>
 
 <script>
+// Formateador global automático con puntos de miles
+function formatearConPuntos(input) {
+    let valorLimpio = input.value.replace(/\D/g, '');
+    if (valorLimpio === '') {
+        input.value = '';
+        return;
+    }
+    let numero = parseInt(valorLimpio, 10);
+    input.value = numero.toLocaleString('es-PY');
+
+    // Mapeo dinámico a inputs ocultos reales
+    if(input.id === 'inputMontoTransaccionVisual') {
+        document.getElementById('inputMontoTransaccionReal').value = numero;
+    } else if(input.id === 'inputMontoTransfVisual') {
+        document.getElementById('inputMontoTransfReal').value = numero;
+    }
+}
+
+document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('moneda-input') || e.target.classList.contains('costo-input')) {
+        formatearConPuntos(e.target);
+    }
+});
+
+function limpiarFormatoMoneda() {
+    let visual = document.getElementById('inputMontoTransaccionVisual');
+    if(visual) {
+        document.getElementById('inputMontoTransaccionReal').value = visual.value.replace(/\./g, '').replace(/,/g, '');
+    }
+}
+
+function limpiarFormatoTransferencia() {
+    let visual = document.getElementById('inputMontoTransfVisual');
+    if(visual) {
+        document.getElementById('inputMontoTransfReal').value = visual.value.replace(/\./g, '').replace(/,/g, '');
+    }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const form = document.getElementById('filterForm');
     if (form) {
@@ -327,37 +329,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 });
-
-function formatearMontoGs(input) {
-    let valorLimpio = input.value.replace(/\D/g, '');
-    if (valorLimpio === '') {
-        input.value = '';
-        if(input.id.includes('Transf')) {
-            document.getElementById('inputMontoTransfReal').value = '';
-        } else {
-            document.getElementById('inputMontoTransaccionReal').value = '';
-        }
-        return;
-    }
-    let numero = parseInt(valorLimpio, 10);
-    input.value = numero.toLocaleString('es-PY');
-    
-    if(input.id.includes('Transf')) {
-        document.getElementById('inputMontoTransfReal').value = numero;
-    } else {
-        document.getElementById('inputMontoTransaccionReal').value = numero;
-    }
-}
-
-function limpiarFormatoMoneda() {
-    let visual = document.getElementById('inputMontoTransaccionVisual').value.replace(/\./g, '').replace(/,/g, '');
-    document.getElementById('inputMontoTransaccionReal').value = visual;
-}
-
-function limpiarFormatoTransferencia() {
-    let visual = document.getElementById('inputMontoTransfVisual').value.replace(/\./g, '').replace(/,/g, '');
-    document.getElementById('inputMontoTransfReal').value = visual;
-}
 
 function setTipoTransaccion(tipo) {
     document.getElementById('inputTipoTransaccion').value = tipo;
