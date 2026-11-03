@@ -8,6 +8,17 @@ from io import StringIO
 
 bp = Blueprint('main', __name__)
 
+def limpiar_monto(valor):
+    """Función auxiliar para limpiar campos numéricos formateados con puntos de miles (ej: 1.000.000 -> 1000000.0)"""
+    if not valor:
+        return 0.0
+    try:
+        # Reemplazar puntos de miles y comas decimales si es necesario
+        valor_limpio = str(valor).replace('.', '').replace(',', '.')
+        return float(valor_limpio)
+    except (ValueError, TypeError):
+        return 0.0
+
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -17,7 +28,6 @@ def login():
         
         if user and user.check_password(password):
             login_user(user)
-            # Si el usuario es recepcion, redirigir directo a Ventas
             if user.username.lower() == 'recepcion':
                 return redirect(url_for('main.ventas_vista'))
             return redirect(url_for('main.pyg'))
@@ -222,10 +232,7 @@ def agregar_venta_completa():
     forma_pago = request.form.get('forma_pago', 'Efectivo/Transferencia')
     num_cuotas = int(request.form.get('num_cuotas') or 1)
     
-    # Limpiar puntos del campo de entrada formateado
-    monto_pagado_str = request.form.get('monto_pagado', '0').replace('.', '').replace(',', '')
-    monto_pagado = float(monto_pagado_str or 0)
-    
+    monto_pagado = limpiar_monto(request.form.get('monto_pagado', '0'))
     cuenta_id = int(request.form.get('cuenta_id')) if request.form.get('cuenta_id') else None
     
     precio_total = 0.0
@@ -262,7 +269,6 @@ def agregar_venta_completa():
         saldo = precio_total - monto_pagado
         estado = 'Pagada' if saldo <= 0 else ('Parcial' if monto_pagado > 0 else 'Pendiente')
         
-        # Construir descripción del concepto de la venta
         conceptos_desc = []
         if paquete:
             conceptos_desc.append(paquete.nombre)
@@ -290,7 +296,6 @@ def agregar_venta_completa():
         db.session.add(venta)
         db.session.flush() 
         
-        # Guardar detalles de servicios avulsos si existen
         for item in avulsos_seleccionados:
             db.session.add(DetalleVenta(
                 venta_id=venta.id,
@@ -378,9 +383,9 @@ def excluir_venta(id):
 def registrar_cobro_avanzado():
     cxc_id = request.form.get('cxc_id', type=int)
     moneda_cobro = request.form.get('moneda_cobro', 'PYG')
-    cotizacion = float(request.form.get('cotizacion') or 1)
-    monto_recibido = float(request.form.get('monto_recibido') or 0)
-    descuento = float(request.form.get('descuento') or 0)
+    cotizacion = limpiar_monto(request.form.get('cotizacion') or 1)
+    monto_recibido = limpiar_monto(request.form.get('monto_recibido') or 0)
+    descuento = limpiar_monto(request.form.get('descuento') or 0)
     motivo_descuento = request.form.get('motivo_descuento', '')
     forma_cobro = request.form.get('forma_cobro', 'Efectivo')
     cuenta_id = request.form.get('cuenta_id', type=int)
@@ -413,7 +418,7 @@ def transferencia():
         return redirect(url_for('main.ventas_vista'))
     cuenta_origen_id = int(request.form.get('cuenta_origen_id'))
     cuenta_destino_id = int(request.form.get('cuenta_destino_id'))
-    monto = float(request.form.get('monto') or 0)
+    monto = limpiar_monto(request.form.get('monto') or 0)
     
     if cuenta_origen_id != cuenta_destino_id and monto > 0:
         orig = Cuenta.query.get(cuenta_origen_id)
@@ -496,11 +501,7 @@ def agregar_paquete():
         return redirect(url_for('main.cadastros'))
     nombre = request.form.get('nombre')
     moneda = request.form.get('moneda', 'PYG')
-    
-    # Limpiar puntos del campo de precio formateado
-    precio_str = request.form.get('precio', '0').replace('.', '').replace(',', '')
-    precio = float(precio_str or 0)
-    
+    precio = limpiar_monto(request.form.get('precio', '0'))
     duracion_meses = int(request.form.get('duracion_meses') or 4)
     
     paquete = Paquete(nombre=nombre, moneda=moneda, precio=precio, duracion_meses=duracion_meses)
@@ -518,8 +519,8 @@ def agregar_paquete():
                 paquete_id=paquete.id,
                 servicio_id=int(servicio_ids[i]),
                 cantidad=int(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1,
-                costo_unitario=float(costos_unitarios[i]) if i < len(costos_unitarios) and costos_unitarios[i] else 0.0,
-                reparto_adicional=float(repartos[i]) if i < len(repartos) and repartos[i] else 0.0
+                costo_unitario=limpiar_monto(costos_unitarios[i]) if i < len(costos_unitarios) and costos_unitarios[i] else 0.0,
+                reparto_adicional=limpiar_monto(repartos[i]) if i < len(repartos) and repartos[i] else 0.0
             ))
             
     db.session.commit()
@@ -534,14 +535,9 @@ def editar_paquete(id):
         return redirect(url_for('main.cadastros'))
     p = Paquete.query.get_or_404(id)
     p.nombre = request.form.get('nombre')
-    
-    # Limpiar puntos del precio formateado
-    precio_str = request.form.get('precio', '0').replace('.', '').replace(',', '')
-    p.precio = float(precio_str or 0)
-    
+    p.precio = limpiar_monto(request.form.get('precio', '0'))
     p.duracion_meses = int(request.form.get('duracion_meses') or 4)
     
-    # Actualizar ítems del paquete
     PaqueteItem.query.filter_by(paquete_id=p.id).delete()
     
     servicio_ids = request.form.getlist('servicio_id[]')
@@ -555,8 +551,8 @@ def editar_paquete(id):
                 paquete_id=p.id,
                 servicio_id=int(servicio_ids[i]),
                 cantidad=int(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1,
-                costo_unitario=float(costos_unitarios[i]) if i < len(costos_unitarios) and costos_unitarios[i] else 0.0,
-                reparto_adicional=float(repartos[i]) if i < len(repartos) and repartos[i] else 0.0
+                costo_unitario=limpiar_monto(costos_unitarios[i]) if i < len(costos_unitarios) and costos_unitarios[i] else 0.0,
+                reparto_adicional=limpiar_monto(repartos[i]) if i < len(repartos) and repartos[i] else 0.0
             ))
             
     db.session.commit()
@@ -684,7 +680,7 @@ def agregar_transaccion():
 
     descripcion = request.form.get('descripcion')
     tipo = request.form.get('tipo')
-    monto_ingresado = float(request.form.get('monto') or 0)
+    monto_ingresado = limpiar_monto(request.form.get('monto') or 0)
     metodo_pago = request.form.get('metodo_pago', 'Efectivo')
     fecha_transaccion = datetime.strptime(request.form.get('fecha'), '%Y-%m-%d') if request.form.get('fecha') else datetime.utcnow()
     observacion = request.form.get('observacion', '')
@@ -714,7 +710,7 @@ def editar_transaccion(id):
     t = Transaccion.query.get_or_404(id)
     t.tipo = request.form.get('tipo')
     t.descripcion = request.form.get('descripcion')
-    t.monto = float(request.form.get('monto') or 0)
+    t.monto = limpiar_monto(request.form.get('monto') or 0)
     t.metodo_pago = request.form.get('metodo_pago')
     t.cuenta_id = int(request.form.get('cuenta_id')) if request.form.get('cuenta_id') else None
     t.categoria_id = int(request.form.get('categoria_id')) if request.form.get('categoria_id') else None
@@ -746,7 +742,7 @@ def agregar_cuenta():
     nombre = request.form.get('nombre')
     tipo_cuenta = request.form.get('tipo_cuenta')
     moneda = request.form.get('moneda')
-    saldo_inicial = float(request.form.get('saldo_inicial') or 0)
+    saldo_inicial = limpiar_monto(request.form.get('saldo_inicial') or 0)
     color = request.form.get('color', '#17b978')
     db.session.add(Cuenta(nombre=nombre, tipo_cuenta=tipo_cuenta, moneda=moneda, saldo_inicial=saldo_inicial, color=color))
     db.session.commit()
@@ -833,8 +829,8 @@ def agregar_medico():
         return redirect(url_for('main.cadastros'))
     nombre = request.form.get('nombre')
     especialidad = request.form.get('especialidad')
-    porcentaje_medico = float(request.form.get('porcentaje_medico') or 70)
-    porcentaje_clinica = float(request.form.get('porcentaje_clinica') or 30)
+    porcentaje_medico = limpiar_monto(request.form.get('porcentaje_medico') or 70)
+    porcentaje_clinica = limpiar_monto(request.form.get('porcentaje_clinica') or 30)
     db.session.add(Medico(nombre=nombre, especialidad=especialidad, porcentaje_medico=porcentaje_medico, porcentaje_clinica=porcentaje_clinica))
     db.session.commit()
     flash('Profesional médico agregado con éxito.', 'success')
@@ -862,10 +858,10 @@ def agregar_servicio():
     nombre = request.form.get('nombre')
     descripcion = request.form.get('descripcion')
     moneda = request.form.get('moneda')
-    precio = float(request.form.get('precio') or 0)
-    costo_unitario = float(request.form.get('costo_unitario') or 0)
+    precio = limpiar_monto(request.form.get('precio') or 0)
+    costo_unitario = limpiar_monto(request.form.get('costo_unitario') or 0)
     profesional_asociado = request.form.get('profesional_asociado')
-    reparto_adicional = float(request.form.get('reparto_adicional') or 0)
+    reparto_adicional = limpiar_monto(request.form.get('reparto_adicional') or 0)
     
     db.session.add(Servicio(
         codigo=codigo, 
@@ -891,10 +887,10 @@ def editar_servicio(id):
     s = Servicio.query.get_or_404(id)
     s.nombre = request.form.get('nombre')
     s.moneda = request.form.get('moneda')
-    s.precio = float(request.form.get('precio') or 0)
-    s.costo_unitario = float(request.form.get('costo_unitario') or 0)
+    s.precio = limpiar_monto(request.form.get('precio') or 0)
+    s.costo_unitario = limpiar_monto(request.form.get('costo_unitario') or 0)
     s.profesional_asociado = request.form.get('profesional_asociado')
-    s.reparto_adicional = float(request.form.get('reparto_adicional') or 0)
+    s.reparto_adicional = limpiar_monto(request.form.get('reparto_adicional') or 0)
     db.session.commit()
     flash('Servicio actualizado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
