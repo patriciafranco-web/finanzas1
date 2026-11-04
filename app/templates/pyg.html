@@ -8,6 +8,7 @@
     <div>
         <form method="GET" class="d-flex align-items-center gap-2">
             <select class="form-select form-select-sm fw-bold" name="periodo" onchange="this.form.submit()">
+                <option value="Noviembre 2026" {% if selected_periodo == 'Noviembre 2026' or not selected_periodo %}selected{% endif %}>Noviembre 2026</option>
                 <option value="Octubre 2026" {% if selected_periodo == 'Octubre 2026' %}selected{% endif %}>Octubre 2026</option>
                 <option value="Septiembre 2026" {% if selected_periodo == 'Septiembre 2026' %}selected{% endif %}>Septiembre 2026</option>
             </select>
