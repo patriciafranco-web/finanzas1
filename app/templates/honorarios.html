@@ -1,49 +1,88 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h2>Honorarios Médicos y Comisiones</h2>
         <p class="text-muted mb-0">Gestión de porcentajes, prestaciones y distribución de pagos por profesional</p>
     </div>
-    <div>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalPrestacion">
-            <i class="fa-solid fa-plus me-1"></i> Registrar Prestación Médica
-        </button>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalPrestacion"><i class="fa-solid fa-plus me-1"></i> Registrar Prestación Médica</button>
+</div>
+
+<!-- Listado de Médicos y Comisiones Configurados -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light fw-bold">Listado de Médicos y Comisiones Configurados</div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Médico / Profesional</th>
+                    <th>Especialidad</th>
+                    <th>% Participación Médico</th>
+                    <th>% Participación Clínica</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in medicos %}
+                <tr>
+                    <td class="fw-bold"><i class="fa-solid fa-user-doctor me-1 text-primary"></i> {{ m.nombre }}</td>
+                    <td>{{ m.especialidad or '-' }}</td>
+                    <td><span class="badge bg-success">{{ m.porcentaje_medico }}%</span></td>
+                    <td><span class="badge bg-primary">{{ m.porcentaje_clinica if m.porcentaje_clinica is not none else 30 }}%</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarMedicoHonorarios{{ m.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
+                        <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este médico?');" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+
+                <!-- Modal Editar Médico desde Honorarios -->
+                <div class="modal fade" id="modalEditarMedicoHonorarios{{ m.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="{{ url_for('main.editar_medico', id=m.id) }}" method="POST">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Editar Médico / Comisiones</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Nombre del Médico</label>
+                                        <input type="text" class="form-control" name="nombre" value="{{ m.nombre }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Especialidad</label>
+                                        <input type="text" class="form-control" name="especialidad" value="{{ m.especialidad or '' }}">
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">% Comisión Médico</label>
+                                            <input type="number" step="any" class="form-control" name="porcentaje_medico" value="{{ m.porcentaje_medico }}" required>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">% Parte Clínica</label>
+                                            <input type="number" step="any" class="form-control" name="porcentaje_clinica" value="{{ m.porcentaje_clinica if m.porcentaje_clinica is not none else 30 }}" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <tr><td colspan="5" class="text-center py-4 text-muted">No hay médicos registrados.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-12">
-        <div class="card shadow-sm">
-            <div class="card-header bg-light fw-bold">Listado de Médicos y Comisiones Configurados</div>
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Médico / Profesional</th>
-                            <th>Especialidad</th>
-                            <th>% Participación Médico</th>
-                            <th>% Participación Clínica</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for m in medicos %}
-                        <tr>
-                            <td class="fw-bold"><i class="fa-solid fa-user-doctor text-primary me-2"></i>{{ m.nombre }}</td>
-                            <td>{{ m.especialidad or 'General' }}</td>
-                            <td><span class="badge bg-success fs-6">{{ m.porcentaje_medico }}%</span></td>
-                            <td><span class="badge bg-primary fs-6">{{ m.porcentaje_clinica }}%</span></td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="4" class="text-center py-4 text-muted">No hay médicos registrados. Agrégalos en Cadastros.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
+<!-- Prestaciones Médicas Realizadas -->
 <div class="card shadow-sm">
     <div class="card-header bg-light fw-bold">Prestaciones Médicas Realizadas (Cálculo de Honorarios)</div>
     <div class="card-body p-0">
@@ -62,29 +101,17 @@
             </thead>
             <tbody>
                 {% for p in prestaciones %}
-                {% set porc_med = p.medico.porcentaje_medico if p.medico else 70 %}
-                {% set porc_clinica = p.medico.porcentaje_clinica if p.medico else 30 %}
-                {% set precio = p.servicio.precio if p.servicio else 0 %}
-                {% set honorario = precio * (porc_med / 100) %}
-                {% set clinica = precio * (porc_clinica / 100) %}
                 <tr>
                     <td>{{ p.fecha.strftime('%d/%m/%Y') if p.fecha else '-' }}</td>
                     <td class="fw-bold">{{ p.medico.nombre if p.medico else '-' }}</td>
-                    <td><span class="badge bg-info text-dark">{{ p.servicio.nombre if p.servicio else '-' }}</span></td>
+                    <td>{{ p.servicio.nombre if p.servicio else '-' }}</td>
                     <td>{{ p.cliente.nombre if p.cliente else 'Particular' }}</td>
-                    <td class="fw-bold text-success">
-                        {% if p.servicio and p.servicio.moneda == 'PYG' %}₲ {% elif p.servicio and p.servicio.moneda == 'USD' %}$ {% else %}R$ {% endif %}
-                        {{ "{:,.2f}".format(precio) }}
-                    </td>
-                    <td class="fw-bold text-primary">
-                        {{ "{:,.2f}".format(honorario) }}
-                    </td>
+                    <td>₲ {{ "{:,.0f}".format(p.servicio.precio or 0).replace(',', '.') }}</td>
+                    <td class="text-success fw-bold">₲ {{ "{:,.0f}".format((p.servicio.precio * p.medico.porcentaje_medico / 100) if (p.servicio and p.medico) else 0).replace(',', '.') }}</td>
+                    <td class="text-primary fw-bold">₲ {{ "{:,.0f}".format((p.servicio.precio * (p.medico.porcentaje_clinica if p.medico and p.medico.porcentaje_clinica is not none else 30) / 100) if (p.servicio and p.medico) else 0).replace(',', '.') }}</td>
                     <td>
-                        {{ "{:,.2f}".format(clinica) }}
-                    </td>
-                    <td>
-                        <form action="{{ url_for('main.eliminar_prestacion', id=p.id) }}" method="POST" onsubmit="return confirm('¿Eliminar esta prestación médica?');">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                        <form action="{{ url_for('main.eliminar_prestacion', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar esta prestación?');" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i></button>
                         </form>
                     </td>
                 </tr>
@@ -101,33 +128,33 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_prestacion') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">Registrar Prestación Médica</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">Registrar Prestación Médica</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Médico</label>
+                        <label class="form-label fw-bold">Profesional Médico</label>
                         <select class="form-select" name="medico_id" required>
                             <option value="">Seleccionar médico...</option>
                             {% for m in medicos %}
-                            <option value="{{ m.id }}">{{ m.nombre }} ({{ m.especialidad or 'General' }})</option>
+                            <option value="{{ m.id }}">{{ m.nombre }} ({{ m.especialidad or 'Sin especialidad' }})</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Servicio / Paquete</label>
+                        <label class="form-label fw-bold">Servicio Realizado</label>
                         <select class="form-select" name="servicio_id" required>
                             <option value="">Seleccionar servicio...</option>
                             {% for s in servicios %}
-                            <option value="{{ s.id }}">{{ s.nombre }} ({{ s.moneda }} {{ "{:,.2f}".format(s.precio) }})</option>
+                            <option value="{{ s.id }}">{{ s.nombre }} (₲ {{ "{:,.0f}".format(s.precio).replace(',', '.') }})</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Paciente / Cliente (Opcional)</label>
+                        <label class="form-label fw-bold">Paciente / Cliente</label>
                         <select class="form-select" name="cliente_id">
-                            <option value="">Seleccionar paciente...</option>
+                            <option value="">Seleccionar paciente (Opcional)...</option>
                             {% for cl in clientes %}
                             <option value="{{ cl.id }}">{{ cl.nombre }}</option>
                             {% endfor %}
@@ -135,7 +162,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Registrar y Calcular</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary fw-bold">Registrar Prestación</button>
                 </div>
             </form>
         </div>
