@@ -84,7 +84,7 @@
 
 <!-- Prestaciones Médicas Realizadas -->
 <div class="card shadow-sm">
-    <div class="card-header bg-light fw-bold">Prestaciones Médicas Realizadas (Cálculo de Honorarios)</div>
+    <div class="card-header bg-light fw-bold">Prestaciones Médicas Realizadas (Cálculo de Honorarios Automáticos y Manuales)</div>
     <div class="card-body p-0">
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
@@ -100,6 +100,7 @@
                 </tr>
             </thead>
             <tbody>
+                <!-- 1. Prestaciones Manuales -->
                 {% for p in prestaciones %}
                 <tr>
                     <td>{{ p.fecha.strftime('%d/%m/%Y') if p.fecha else '-' }}</td>
@@ -115,9 +116,25 @@
                         </form>
                     </td>
                 </tr>
-                {% else %}
-                <tr><td colspan="8" class="text-center py-4 text-muted">No hay prestaciones médicas registradas.</td></tr>
                 {% endfor %}
+
+                <!-- 2. Prestaciones Automáticas (Derivadas de los Paquetes Vendidos) -->
+                {% for pv in prestaciones_virtuales %}
+                <tr>
+                    <td>{{ pv.fecha.strftime('%d/%m/%Y') if pv.fecha else '-' }}</td>
+                    <td class="fw-bold"><span class="badge bg-info text-dark me-1" title="Generado automáticamente por venta de plan">Auto</span> {{ pv.medico.nombre }}</td>
+                    <td>{{ pv.servicio_nombre }}</td>
+                    <td>{{ pv.cliente.nombre if pv.cliente else 'Particular' }}</td>
+                    <td>₲ {{ "{:,.0f}".format(pv.valor_total).replace(',', '.') }}</td>
+                    <td class="text-success fw-bold">₲ {{ "{:,.0f}".format(pv.honorario).replace(',', '.') }}</td>
+                    <td class="text-primary fw-bold">₲ {{ "{:,.0f}".format(pv.clinica).replace(',', '.') }}</td>
+                    <td><span class="text-muted small">Automático</span></td>
+                </tr>
+                {% endfor %}
+
+                {% if not prestaciones and not prestaciones_virtuales %}
+                <tr><td colspan="8" class="text-center py-4 text-muted">No hay prestaciones médicas registradas.</td></tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
