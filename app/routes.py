@@ -62,7 +62,6 @@ def pyg():
     if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
 
-    # Capturar rango de fechas de los filtros
     fecha_desde_str = request.args.get('fecha_desde', '')
     fecha_hasta_str = request.args.get('fecha_hasta', '')
 
@@ -206,7 +205,7 @@ def bloqueos_vista():
 @bp.route('/bloquear-periodo', methods=['POST'])
 @login_required
 def bloquear_periodo():
-    periodo = request.form.get('periodo', 'Octubre 2026')
+    periodo = request.form.get('periodo', 'Noviembre 2026')
     cuenta_id = request.form.get('cuenta_id')
     cta_val = int(cuenta_id) if cuenta_id and cuenta_id != 'todas' else None
     
