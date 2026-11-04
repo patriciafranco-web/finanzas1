@@ -8,6 +8,39 @@
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalVenta"><i class="fa-solid fa-plus me-1"></i> Nueva Venta</button>
 </div>
 
+<!-- Filtros de Búsqueda y Botón Excel -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Buscar Paciente / Cliente</label>
+                <input type="text" class="form-control form-control-sm" name="q" value="{{ selected_q }}" placeholder="Nombre del paciente...">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Filtrar por Plan</label>
+                <select class="form-select form-select-sm" name="paquete_id">
+                    <option value="">Todos los planes</option>
+                    {% for p in paquetes %}
+                    <option value="{{ p.id }}" {% if selected_paquete == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">Desde</label>
+                <input type="date" class="form-control form-control-sm" name="fecha_desde" value="{{ selected_desde }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">Hasta</label>
+                <input type="date" class="form-control form-control-sm" name="fecha_hasta" value="{{ selected_hasta }}">
+            </div>
+            <div class="col-md-2 d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold"><i class="fa-solid fa-filter me-1"></i> Filtrar</button>
+                <a href="{{ url_for('main.exportar_ventas_excel', q=selected_q, paquete_id=selected_paquete, fecha_desde=selected_desde, fecha_hasta=selected_hasta) }}" class="btn btn-sm btn-success w-100 fw-bold" title="Exportar a Excel"><i class="fa-solid fa-file-excel me-1"></i> Excel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card shadow-sm">
     <div class="card-body p-0">
         <table class="table table-hover mb-0 align-middle">
@@ -135,28 +168,38 @@
                                 {% endif %}
 
                                 <h6 class="fw-bold text-secondary mb-2">Cuotas Generadas</h6>
-                                <table class="table table-sm table-striped mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Nº Cuota</th>
-                                            <th>Vencimiento</th>
-                                            <th>Valor</th>
-                                            <th>Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for cuota in v.cuotas %}
-                                        <tr>
-                                            <td>{{ cuota.numero_cuota }}</td>
-                                            <td>{{ cuota.vencimiento_label }}</td>
-                                            <td>₲ {{ "{:,.0f}".format(cuota.valor or 0).replace(',', '.') }}</td>
-                                            <td><span class="badge {% if cuota.estado == 'Pagado' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ cuota.estado }}</span></td>
-                                        </tr>
-                                        {% else %}
-                                        <tr><td colspan="4" class="text-center text-muted">No hay cuotas asociadas.</td></tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                                <div class="card border-0 shadow-sm bg-white mb-0">
+                                    <div class="card-body p-2">
+                                        <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
+                                            <table class="table table-sm table-borderless mb-0 align-middle small">
+                                                <thead class="text-muted border-bottom sticky-top bg-white">
+                                                    <tr>
+                                                        <th class="py-1 text-center" style="width: 15%;">N° Cuota</th>
+                                                        <th class="py-1" style="width: 40%;">Vencimiento</th>
+                                                        <th class="py-1 text-end" style="width: 25%;">Valor</th>
+                                                        <th class="py-1 text-center" style="width: 20%;">Estado</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for cuota in v.cuotas %}
+                                                    <tr class="border-bottom border-light">
+                                                        <td class="text-center fw-bold text-dark">{{ cuota.numero_cuota }}</td>
+                                                        <td class="text-muted">{{ cuota.vencimiento_label }}</td>
+                                                        <td class="text-end fw-bold text-success">₲ {{ "{:,.0f}".format(cuota.valor or 0).replace(',', '.') }}</td>
+                                                        <td class="text-center">
+                                                            <span class="badge {% if cuota.estado == 'Pagado' %}bg-success{% else %}bg-warning text-dark{% endif %} px-2 py-1">
+                                                                {{ cuota.estado }}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                    {% else %}
+                                                    <tr><td colspan="4" class="text-center text-muted py-3">No hay cuotas asociadas.</td></tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
