@@ -246,12 +246,87 @@ def desbloquear_todo():
 @bp.route('/ventas')
 @login_required
 def ventas_vista():
-    ventas = Venta.query.order_by(Venta.fecha.desc()).all()
+    q = request.args.get('q', '').strip()
+    paquete_id = request.args.get('paquete_id', type=int)
+    fecha_desde_str = request.args.get('fecha_desde', '')
+    fecha_hasta_str = request.args.get('fecha_hasta', '')
+
+    query = Venta.query
+
+    if q:
+        query = query.join(Cliente).filter(Cliente.nombre.ilike(f'%{q}%'))
+    if paquete_id:
+        query = query.filter_by(paquete_id=paquete_id)
+    if fecha_desde_str:
+        dt_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
+        query = query.filter(Venta.fecha >= dt_desde)
+    if fecha_hasta_str:
+        dt_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d')
+        dt_hasta_fin = datetime.combine(dt_hasta.date(), time.max)
+        query = query.filter(Venta.fecha <= dt_hasta_fin)
+
+    ventas = query.order_by(Venta.fecha.desc()).all()
     clientes = Cliente.query.all()
     servicios = Servicio.query.all()
     paquetes = Paquete.query.all()
     cuentas = Cuenta.query.all()
-    return render_template('ventas.html', ventas=ventas, clientes=clientes, servicios=servicios, paquetes=paquetes, cuentas=cuentas)
+
+    return render_template('ventas.html', 
+                           ventas=ventas, 
+                           clientes=clientes, 
+                           servicios=servicios, 
+                           paquetes=paquetes, 
+                           cuentas=cuentas,
+                           selected_q=q,
+                           selected_paquete=paquete_id,
+                           selected_desde=fecha_desde_str,
+                           selected_hasta=fecha_hasta_str)
+
+@bp.route('/exportar-ventas-excel')
+@login_required
+def exportar_ventas_excel():
+    q = request.args.get('q', '').strip()
+    paquete_id = request.args.get('paquete_id', type=int)
+    fecha_desde_str = request.args.get('fecha_desde', '')
+    fecha_hasta_str = request.args.get('fecha_hasta', '')
+
+    query = Venta.query
+    if q:
+        query = query.join(Cliente).filter(Cliente.nombre.ilike(f'%{q}%'))
+    if paquete_id:
+        query = query.filter_by(paquete_id=paquete_id)
+    if fecha_desde_str:
+        dt_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
+        query = query.filter(Venta.fecha >= dt_desde)
+    if fecha_hasta_str:
+        dt_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d')
+        dt_hasta_fin = datetime.combine(dt_hasta.date(), time.max)
+        query = query.filter(Venta.fecha <= dt_hasta_fin)
+
+    ventas = query.order_by(Venta.fecha.desc()).all()
+
+    si = StringIO()
+    cw = csv.writer(si, delimiter=';')
+    # Columnas exactas solicitadas: fecha / cliente / plan / total / costo / pagado / saldo / margen / estado
+    cw.writerow(['fecha', 'cliente', 'plan', 'total', 'costo', 'pagado', 'saldo', 'margen', 'estado'])
+
+    for v in ventas:
+        nombre_cliente = v.cliente.nombre if v.cliente else 'Particular'
+        nombre_plan = v.paquete.nombre if v.paquete else 'Venta General / Avulso'
+        cw.writerow([
+            v.fecha.strftime('%d/%m/%Y') if v.fecha else '',
+            nombre_cliente,
+            nombre_plan,
+            v.total,
+            v.costo_servicios,
+            v.pagado,
+            v.saldo,
+            v.ganancia_plan,
+            v.estado
+        ])
+
+    output = si.getvalue().encode('utf-8-sig')
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=reporte_ventas.csv"})
 
 @bp.route('/agregar-venta-completa', methods=['POST'])
 @login_required
