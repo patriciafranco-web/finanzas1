@@ -65,7 +65,7 @@ def pyg():
     fecha_desde_str = request.args.get('fecha_desde', '')
     fecha_hasta_str = request.args.get('fecha_hasta', '')
 
-    query_ventas = Venta.query.filter_by(estado='Pagada')
+    query_ventas = Venta.query.filter(Venta.estado != 'Cancelada')
     
     if fecha_desde_str:
         dt_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
@@ -76,8 +76,10 @@ def pyg():
         query_ventas = query_ventas.filter(Venta.fecha <= dt_hasta_fin)
 
     ventas = query_ventas.all()
-    total_ingresos_netos = sum((v.total - v.iva) for v in ventas)
-    costo_total_servicios = sum(v.costo_servicios for v in ventas)
+    
+    total_vendido_bruto = sum((v.total or 0) for v in ventas)
+    total_ingresos_netos = sum(((v.total or 0) - (v.iva or 0) - (v.descuento or 0)) for v in ventas)
+    costo_total_servicios = sum((v.costo_servicios or 0) for v in ventas)
     
     cxp_fijos = CuentaPorPagar.query.all()
     total_costos_fijos = sum(p.monto for p in cxp_fijos if p.concepto and 'fijo' in p.concepto.lower())
@@ -85,17 +87,61 @@ def pyg():
     total_egresos_costos = costo_total_servicios + total_costos_fijos
     utilidad_neta = total_ingresos_netos - total_egresos_costos
     
-    total_planes = len(ventas)
+    total_planes = sum(1 for v in ventas if v.paquete_id is not None)
+    
+    # Calcular Consultas y Honorarios por profesional de forma inteligente y flexible
     valor_por_profesional = []
     medicos = Medico.query.all()
+    
     for m in medicos:
-        prestaciones_medico = PrestacionServicio.query.filter_by(medico_id=m.id).count()
-        valor_medico = prestaciones_medico * (m.porcentaje_medico * 600000 / 100) if hasattr(m, 'porcentaje_medico') else 0
+        consultas_totales = 0
+        valor_total_medico = 0.0
+        esp_lower = (m.especialidad or '').strip().lower()
+        nombre_med_lower = (m.nombre or '').strip().lower()
+        porc_medico = (m.porcentaje_medico or 70.0) / 100.0
+
+        # 1. Prestaciones directas registradas en Honorarios Médicos
+        prestaciones_directas = PrestacionServicio.query.filter_by(medico_id=m.id).all()
+        for p in prestaciones_directas:
+            consultas_totales += (p.cantidad or 1)
+            precio_srv = p.servicio.precio if p.servicio else 0.0
+            valor_total_medico += precio_srv * porc_medico
+
+        # 2. Ítems de paquetes vendidos y servicios avulsos cruzados por especialidad o nombre
+        for v in ventas:
+            if v.paquete and v.paquete.items:
+                for item in v.paquete.items:
+                    nombre_srv = (item.servicio.nombre if item.servicio else '').strip().lower()
+                    
+                    # Coincidencia flexible por palabras clave
+                    es_match = False
+                    if esp_lower and (esp_lower in nombre_srv or nombre_srv in esp_lower):
+                        es_match = True
+                    if 'nutricion' in esp_lower and 'nutricionista' in nombre_srv:
+                        es_match = True
+                    if 'metabol' in esp_lower and 'metabólica' in nombre_srv:
+                        es_match = True
+                    if 'nutricion' in nombre_med_lower and 'nutricionista' in nombre_srv:
+                        es_match = True
+
+                    if es_match:
+                        consultas_totales += (item.cantidad or 1)
+                        base_calculo = item.costo_total_item if (item.costo_total_item or 0) > 0 else (item.servicio.precio * (item.cantidad or 1))
+                        valor_total_medico += base_calculo * porc_medico
+
+            if v.detalles:
+                for det in v.detalles:
+                    nombre_srv_det = (det.servicio.nombre if det.servicio else '').strip().lower()
+                    if esp_lower and (esp_lower in nombre_srv_det or nombre_srv_det in esp_lower):
+                        consultas_totales += (det.cantidad or 1)
+                        base_calculo_det = det.subtotal if (det.subtotal or 0) > 0 else 0
+                        valor_total_medico += base_calculo_det * porc_medico
+
         valor_por_profesional.append({
             'nombre': m.nombre,
             'especialidad': m.especialidad,
-            'consultas': prestaciones_medico,
-            'valor': valor_medico
+            'consultas': consultas_totales,
+            'valor': valor_total_medico
         })
 
     transacciones = Transaccion.query.all()
@@ -105,6 +151,7 @@ def pyg():
                            total_salidas=total_egresos_costos, 
                            utilidad_neta=utilidad_neta,
                            total_planes=total_planes,
+                           total_vendido_bruto=total_vendido_bruto,
                            valor_por_profesional=valor_por_profesional,
                            selected_desde=fecha_desde_str,
                            selected_hasta=fecha_hasta_str)
