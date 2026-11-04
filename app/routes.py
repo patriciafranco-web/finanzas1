@@ -113,7 +113,6 @@ def pyg():
                 for item in v.paquete.items:
                     nombre_srv = (item.servicio.nombre if item.servicio else '').strip().lower()
                     
-                    # Coincidencia flexible por palabras clave (ej: 'nutricionista' vs 'nutrición')
                     es_match = False
                     if esp_lower and (esp_lower in nombre_srv or nombre_srv in esp_lower):
                         es_match = True
@@ -354,7 +353,6 @@ def exportar_ventas_excel():
 
     si = StringIO()
     cw = csv.writer(si, delimiter=';')
-    # Columnas exactas solicitadas: fecha / cliente / plan / total / costo / pagado / saldo / margen / estado
     cw.writerow(['fecha', 'cliente', 'plan', 'total', 'costo', 'pagado', 'saldo', 'margen', 'estado'])
 
     for v in ventas:
@@ -848,7 +846,30 @@ def honorarios():
     servicios = Servicio.query.all()
     clientes = Cliente.query.all()
     prestaciones = PrestacionServicio.query.order_by(PrestacionServicio.fecha.desc()).all()
-    return render_template('honorarios.html', medicos=medicos, servicios=servicios, clientes=clientes, prestaciones=prestaciones)
+    
+    # Inyectar prestaciones virtuales automáticas de los planes vendidos
+    prestaciones_virtuales = []
+    ventas = Venta.query.filter(Venta.estado != 'Cancelada').all()
+    for v in ventas:
+        if v.paquete and v.paquete.items:
+            for item in v.paquete.items:
+                nombre_srv = (item.servicio.nombre if item.servicio else '').strip().lower()
+                for m in medicos:
+                    esp = (m.especialidad or '').strip().lower()
+                    if (esp and (esp in nombre_srv or nombre_srv in esp)) or ('nutricion' in esp and 'nutricionista' in nombre_srv):
+                        porc_med = (m.porcentaje_medico or 70.0) / 100.0
+                        val_total = item.costo_total_item if (item.costo_total_item or 0) > 0 else (item.servicio.precio * (item.cantidad or 1))
+                        prestaciones_virtuales.append({
+                            'fecha': v.fecha,
+                            'medico': m,
+                            'servicio_nombre': item.servicio.nombre if item.servicio else 'Servicio',
+                            'cliente': v.cliente,
+                            'valor_total': val_total,
+                            'honorario': val_total * porc_med,
+                            'clinica': val_total * (1 - porc_med)
+                        })
+
+    return render_template('honorarios.html', medicos=medicos, servicios=servicios, clientes=clientes, prestaciones=prestaciones, prestaciones_virtuales=prestaciones_virtuales)
 
 @bp.route('/agregar-prestacion', methods=['POST'])
 @login_required
