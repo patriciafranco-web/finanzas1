@@ -59,7 +59,7 @@
             <div class="col-md-6">
                 <div class="p-3 bg-light rounded border">
                     <span class="text-muted small d-block">Valor vendido (IVA incluido)</span>
-                    <h4 class="fw-bold mb-0 text-dark">₲ {{ "{:,.0f}".format(total_ingresos * 1.1) }}</h4>
+                    <h4 class="fw-bold mb-0 text-dark">₲ {{ "{:,.0f}".format(total_vendido_bruto | default(total_ingresos * 1.1)).replace(',', '.') }}</h4>
                 </div>
             </div>
         </div>
@@ -80,9 +80,9 @@
             <thead class="table-light">
                 <tr>
                     <th>Profesional</th>
-                    <th>Servicio</th>
-                    <th class="text-center">Consultas</th>
-                    <th class="text-end">Valor</th>
+                    <th>Especialidad / Servicio</th>
+                    <th class="text-center">Consultas / Ítems</th>
+                    <th class="text-end">Valor Honorario</th>
                 </tr>
             </thead>
             <tbody>
@@ -103,7 +103,7 @@
             </tbody>
             <tfoot class="table-light fw-bold">
                 <tr>
-                    <td colspan="3">Total</td>
+                    <td colspan="3">Total Honorarios</td>
                     <td class="text-end text-primary">
                         ₲ {{ "{:,.0f}".format(valor_por_profesional | sum(attribute='valor') if valor_por_profesional else 0).replace(',', '.') }}
                     </td>
