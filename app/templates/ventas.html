@@ -100,7 +100,7 @@
 
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Plan / Paquete Médico (Opcional)</label>
-                                <select class="form-select" name="paquete_id" id="paqueteSelect" onchange="actualizarDatosPaquete(this)">
+                                <select class="form-select" name="paquete_id" id="paqueteSelect" onchange="actualizarDatosPaquete()">
                                     <option value="">-- Ninguno (Solo servicios avulsos / sueltos) --</option>
                                     {% for p in paquetes %}
                                     <option value="{{ p.id }}" data-precio="{{ p.precio }}" data-duracion="{{ p.duracion_meses }}">
@@ -144,7 +144,7 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">Forma de Pago</label>
-                                    <select class="form-select" name="forma_pago" required>
+                                    <select class="form-select" name="forma_pago" id="formaPagoSelect" onchange="actualizarDatosPaquete()" required>
                                         <option value="Efectivo/Transferencia">Efectivo / Transferencia</option>
                                         <option value="Crédito (local/extranjera)">Crédito (local / extranjera)</option>
                                         <option value="Débito">Débito</option>
@@ -270,12 +270,23 @@ function limpiarFormatoVentas() {
     }
 }
 
-function actualizarDatosPaquete(select) {
+function actualizarDatosPaquete() {
+    let select = document.getElementById('paqueteSelect');
+    if (!select || select.selectedIndex === -1) return;
     let opt = select.options[select.selectedIndex];
     let precio = parseFloat(opt.getAttribute('data-precio')) || 0;
     
+    let formaPagoSelect = document.getElementById('formaPagoSelect');
+    let formaPago = formaPagoSelect ? formaPagoSelect.value : '';
+
     let iva = precio / 11;
-    let tarifa = precio * 0.033;
+    
+    // Aplicar tarifa de tarjeta solo si la forma de pago incluye la palabra Crédito o Tarjeta
+    let tarifa = 0;
+    if (formaPago.toLowerCase().includes('crédito') || formaPago.toLowerCase().includes('tarjeta')) {
+        tarifa = precio * 0.033;
+    }
+
     let costoServicios = precio * 0.25;
     let margenContribucion = precio - iva - tarifa - costoServicios;
     let costoFijoPlan = 0; 
