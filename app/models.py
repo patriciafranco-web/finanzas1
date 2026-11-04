@@ -9,7 +9,6 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     
-    # Propiedad dinámica para evitar errores de columnas faltantes en la base de datos
     @property
     def role(self):
         return 'recepcion' if self.username.lower() == 'recepcion' else 'admin'
@@ -36,6 +35,7 @@ class Cliente(db.Model):
     documento = db.Column(db.String(50))
     telefono = db.Column(db.String(50))
     email = db.Column(db.String(100))
+    fecha_nacimiento = db.Column(db.Date, nullable=True) # <-- Añadido para control de cumpleaños
 
 class Medico(db.Model):
     __tablename__ = 'medico'
@@ -43,7 +43,7 @@ class Medico(db.Model):
     nombre = db.Column(db.String(150), nullable=False)
     especialidad = db.Column(db.String(100))
     porcentaje_medico = db.Column(db.Float, default=70.0)
-    porcentaje_clinica = db.Column(db.Float, default=30.0)
+    porcentaje_clinica = db.Column(db.Float, default=30.0) # <-- Editable de forma independiente
 
 class Servicio(db.Model):
     __tablename__ = 'servicio'
