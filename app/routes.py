@@ -62,7 +62,21 @@ def pyg():
     if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
 
-    ventas = Venta.query.filter_by(estado='Pagada').all()
+    # Capturar rango de fechas de los filtros
+    fecha_desde_str = request.args.get('fecha_desde', '')
+    fecha_hasta_str = request.args.get('fecha_hasta', '')
+
+    query_ventas = Venta.query.filter_by(estado='Pagada')
+    
+    if fecha_desde_str:
+        dt_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
+        query_ventas = query_ventas.filter(Venta.fecha >= dt_desde)
+    if fecha_hasta_str:
+        dt_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d')
+        dt_hasta_fin = datetime.combine(dt_hasta.date(), time.max)
+        query_ventas = query_ventas.filter(Venta.fecha <= dt_hasta_fin)
+
+    ventas = query_ventas.all()
     total_ingresos_netos = sum((v.total - v.iva) for v in ventas)
     costo_total_servicios = sum(v.costo_servicios for v in ventas)
     
@@ -92,7 +106,9 @@ def pyg():
                            total_salidas=total_egresos_costos, 
                            utilidad_neta=utilidad_neta,
                            total_planes=total_planes,
-                           valor_por_profesional=valor_por_profesional)
+                           valor_por_profesional=valor_por_profesional,
+                           selected_desde=fecha_desde_str,
+                           selected_hasta=fecha_hasta_str)
 
 @bp.route('/finanzas')
 @login_required
