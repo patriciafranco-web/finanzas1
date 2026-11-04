@@ -130,6 +130,7 @@
                             <th>Documento</th>
                             <th>Teléfono</th>
                             <th>Email</th>
+                            <th>Nacimiento</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -140,6 +141,7 @@
                             <td>{{ cl.documento or '-' }}</td>
                             <td>{{ cl.telefono or '-' }}</td>
                             <td>{{ cl.email or '-' }}</td>
+                            <td>{{ cl.fecha_nacimiento.strftime('%d/%m/%Y') if cl.fecha_nacimiento else '-' }}</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCliente{{ cl.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
                                 <form action="{{ url_for('main.eliminar_cliente', id=cl.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este cliente?');" class="d-inline">
@@ -174,6 +176,10 @@
                                                 <label class="form-label">Email</label>
                                                 <input type="email" class="form-control" name="email" value="{{ cl.email or '' }}">
                                             </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Fecha de Nacimiento (Cumpleaños)</label>
+                                                <input type="date" class="form-control" name="fecha_nacimiento" value="{{ cl.fecha_nacimiento.strftime('%Y-%m-%d') if cl.fecha_nacimiento else '' }}">
+                                            </div>
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -184,7 +190,7 @@
                             </div>
                         </div>
                         {% else %}
-                        <tr><td colspan="5" class="text-center py-4 text-muted">No hay clientes registrados.</td></tr>
+                        <tr><td colspan="6" class="text-center py-4 text-muted">No hay clientes registrados.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -217,7 +223,7 @@
                             <td class="fw-bold">{{ m.nombre }}</td>
                             <td>{{ m.especialidad or '-' }}</td>
                             <td><span class="badge bg-success">{{ m.porcentaje_medico }}%</span></td>
-                            <td><span class="badge bg-primary">{{ m.porcentaje_clinica }}%</span></td>
+                            <td><span class="badge bg-primary">{{ m.porcentaje_clinica if m.porcentaje_clinica is not none else 30 }}%</span></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarMedico{{ m.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
                                 <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este médico?');" class="d-inline">
@@ -244,9 +250,15 @@
                                                 <label class="form-label">Especialidad</label>
                                                 <input type="text" class="form-control" name="especialidad" value="{{ m.especialidad or '' }}">
                                             </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">% Participación Médico</label>
-                                                <input type="number" step="any" class="form-control" name="porcentaje_medico" value="{{ m.porcentaje_medico }}">
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">% Comisión Médico</label>
+                                                    <input type="number" step="any" class="form-control" name="porcentaje_medico" value="{{ m.porcentaje_medico }}" required>
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">% Parte Clínica</label>
+                                                    <input type="number" step="any" class="form-control" name="porcentaje_clinica" value="{{ m.porcentaje_clinica if m.porcentaje_clinica is not none else 30 }}" required>
+                                                </div>
                                             </div>
                                         </div>
                                         <div class="modal-footer">
@@ -414,10 +426,10 @@
                                                 {% for item in p.items %}
                                                 <div class="row item-row mb-2 align-items-end">
                                                     <div class="col-md-5">
-                                                        <select name="servicio_id[]" class="form-select form-select-sm" onchange="autocompletarCostoServicio(this)" required>
+                                                        <select name="servicio_id[]" class="form-select form-select-sm" onchange="autocompletarDatosServicio(this)" required>
                                                             <option value="">Seleccione servicio...</option>
                                                             {% for s in servicios %}
-                                                            <option value="{{ s.id }}" data-costo="{{ s.costo_unitario or 0 }}" {% if s.id == item.servicio_id %}selected{% endif %}>{{ s.nombre }}</option>
+                                                            <option value="{{ s.id }}" data-costo="{{ s.costo_unitario or 0 }}" data-reparto="{{ s.reparto_adicional or 0 }}" {% if s.id == item.servicio_id %}selected{% endif %}>{{ s.nombre }}</option>
                                                             {% endfor %}
                                                         </select>
                                                     </div>
@@ -425,11 +437,10 @@
                                                         <input type="number" name="cantidad[]" class="form-control form-control-sm" value="{{ item.cantidad }}" min="1" required>
                                                     </div>
                                                     <div class="col-md-2">
-                                                        <!-- Se agregó la clase moneda-input aquí para formatear el costo unitario con puntos -->
                                                         <input type="text" name="costo_unitario[]" class="form-control form-control-sm costo-input moneda-input" value="{{ '{:,.0f}'.format(item.costo_unitario if item.costo_unitario > 0 else (item.servicio.costo_unitario if item.servicio else 0)).replace(',', '.') }}" required>
                                                     </div>
                                                     <div class="col-md-2">
-                                                        <input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm" value="{{ item.reparto_adicional }}">
+                                                        <input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm reparto-input" value="{{ item.reparto_adicional }}">
                                                     </div>
                                                     <div class="col-md-1">
                                                         <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button>
@@ -610,6 +621,7 @@
                     <div class="mb-3"><label class="form-label">Documento / C.I.</label><input type="text" class="form-control" name="documento"></div>
                     <div class="mb-3"><label class="form-label">Teléfono</label><input type="text" class="form-control" name="telefono"></div>
                     <div class="mb-3"><label class="form-label">Email</label><input type="email" class="form-control" name="email"></div>
+                    <div class="mb-3"><label class="form-label">Fecha de Nacimiento (Cumpleaños)</label><input type="date" class="form-control" name="fecha_nacimiento"></div>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar Cliente</button></div>
             </form>
@@ -627,7 +639,16 @@
                 <div class="modal-body">
                     <div class="mb-3"><label class="form-label">Nombre del Médico</label><input type="text" class="form-control" name="nombre" required placeholder="Dr. Carlos Benítez"></div>
                     <div class="mb-3"><label class="form-label">Especialidad</label><input type="text" class="form-control" name="especialidad" placeholder="Pediatría"></div>
-                    <div class="mb-3"><label class="form-label">% Participación Médico</label><input type="number" step="any" class="form-control" name="porcentaje_medico" value="70"></div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">% Comisión Médico</label>
+                            <input type="number" step="any" class="form-control" name="porcentaje_medico" value="70" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">% Parte Clínica</label>
+                            <input type="number" step="any" class="form-control" name="porcentaje_clinica" value="30" required>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar Médico</button></div>
             </form>
@@ -688,16 +709,16 @@
                     <div id="contenedor-items-paquete">
                         <div class="row item-row mb-2 align-items-end">
                             <div class="col-md-5">
-                                <select name="servicio_id[]" class="form-select form-select-sm" onchange="autocompletarCostoServicio(this)" required>
+                                <select name="servicio_id[]" class="form-select form-select-sm" onchange="autocompletarDatosServicio(this)" required>
                                     <option value="">Seleccione servicio...</option>
                                     {% for s in servicios %}
-                                    <option value="{{ s.id }}" data-costo="{{ s.costo_unitario or 0 }}">{{ s.nombre }}</option>
+                                    <option value="{{ s.id }}" data-costo="{{ s.costo_unitario or 0 }}" data-reparto="{{ s.reparto_adicional or 0 }}">{{ s.nombre }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-2"><input type="number" name="cantidad[]" class="form-control form-control-sm" value="1" min="1" required></div>
                             <div class="col-md-2"><input type="text" name="costo_unitario[]" class="form-control form-control-sm costo-input moneda-input" value="0" required></div>
-                            <div class="col-md-2"><input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm" value="0"></div>
+                            <div class="col-md-2"><input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm reparto-input" value="0"></div>
                             <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button></div>
                         </div>
                     </div>
@@ -751,13 +772,21 @@ function agregarFilaItem() {
     contenedor.appendChild(nuevaFila);
 }
 
-function autocompletarCostoServicio(select) {
+// Autocompletar costo unitario y reparto adicional al seleccionar un servicio en el paquete
+function autocompletarDatosServicio(select) {
     let opt = select.options[select.selectedIndex];
     let costo = parseFloat(opt.getAttribute('data-costo')) || 0;
+    let reparto = parseFloat(opt.getAttribute('data-reparto')) || 0;
+    
     let fila = select.closest('.item-row');
     let inputCosto = fila.querySelector('.costo-input');
+    let inputReparto = fila.querySelector('.reparto-input');
+    
     if (inputCosto) {
         inputCosto.value = costo.toLocaleString('es-PY');
+    }
+    if (inputReparto) {
+        inputReparto.value = reparto;
     }
 }
 
