@@ -41,6 +41,7 @@
     </div>
 </div>
 
+<!-- 1. TABLA PRINCIPAL LIMPIA (SIN MODALES ADENTRO) -->
 <div class="card shadow-sm">
     <div class="card-body p-0">
         <table class="table table-hover mb-0 align-middle">
@@ -79,7 +80,7 @@
                                 Acciones
                             </button>
                             <ul class="dropdown-menu">
-                                <li><button class="dropdown-item text-primary" data-bs-toggle="modal" data-bs-target="#modalDetallesVenta{{ v.id }}"><i class="fa-solid fa-eye me-1"></i> Ver detalles</button></li>
+                                <li><button class="dropdown-item text-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalDetallesVenta{{ v.id }}"><i class="fa-solid fa-eye me-1"></i> Ver detalles</button></li>
 
                                 {% if v.estado != 'Pagada' and v.estado != 'Cancelada' %}
                                 <li><a class="dropdown-item text-success" href="{{ url_for('main.cxc_vista') }}"><i class="fa-solid fa-cash-register me-1"></i> Cobrar cuota</a></li>
@@ -102,110 +103,6 @@
                         </div>
                     </td>
                 </tr>
-
-                <!-- Modal de Detalles por Venta -->
-                <div class="modal fade" id="modalDetallesVenta{{ v.id }}" tabindex="-1">
-                    <div class="modal-dialog modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header bg-primary text-white">
-                                <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice-dollar me-2"></i> Detalle de la Venta #{{ v.id }}</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <p class="mb-1"><strong>Paciente:</strong> {{ v.cliente.nombre if v.cliente else 'Particular' }}</p>
-                                        <p class="mb-1"><strong>Plan / Paquete:</strong> {{ v.paquete.nombre if v.paquete else 'Ninguno (Servicios sueltos)' }}</p>
-                                        <p class="mb-1"><strong>Fecha:</strong> {{ v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else '-' }}</p>
-                                    </div>
-                                    <div class="col-md-6 text-md-end">
-                                        <p class="mb-1"><strong>Estado:</strong> {{ v.estado }}</p>
-                                        <p class="mb-1"><strong>Total Facturado:</strong> <span class="text-success fw-bold">₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</span></p>
-                                    </div>
-                                </div>
-
-                                <hr>
-
-                                <h6 class="fw-bold text-secondary mb-2">Desglose Financiero y Márgenes</h6>
-                                <div class="bg-light p-3 rounded mb-3">
-                                    <div class="d-flex justify-content-between mb-1"><span>Facturación Bruta:</span> <strong>₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</strong></div>
-                                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) IVA (÷ 11):</span> <strong>₲ {{ "{:,.0f}".format(v.iva or 0).replace(',', '.') }}</strong></div>
-                                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Tarifa de tarjeta:</span> <strong>₲ {{ "{:,.0f}".format(v.tarifa_pasarela or 0).replace(',', '.') }}</strong></div>
-                                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Costo de servicios:</span> <strong>₲ {{ "{:,.0f}".format(v.costo_servicios or 0).replace(',', '.') }}</strong></div>
-                                    <hr class="my-2">
-                                    <div class="d-flex justify-content-between mb-1 fw-bold"><span>Margen de contribución:</span> <span class="text-primary">₲ {{ "{:,.0f}".format(v.margen_contribucion or 0).replace(',', '.') }}</span></div>
-                                    <div class="d-flex justify-content-between mb-1 text-danger small"><span>(-) Costo fijo por plan:</span> <strong>₲ {{ "{:,.0f}".format(v.costo_fijo_plan or 0).replace(',', '.') }}</strong></div>
-                                    <hr class="my-2">
-                                    <div class="d-flex justify-content-between fw-bold text-success fs-5">
-                                        <span>Ganancia neta del plan:</span>
-                                        <span>₲ {{ "{:,.0f}".format(v.ganancia_plan or 0).replace(',', '.') }}</span>
-                                    </div>
-                                </div>
-
-                                {% if v.detalles %}
-                                <h6 class="fw-bold text-secondary mb-2">Servicios Avulsos / Extras incluidos</h6>
-                                <table class="table table-sm table-bordered mb-3">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Servicio</th>
-                                            <th>Cantidad</th>
-                                            <th>Precio Unitario</th>
-                                            <th>Subtotal</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for det in v.detalles %}
-                                        <tr>
-                                            <td>{{ det.servicio.nombre if det.servicio else '-' }}</td>
-                                            <td>{{ det.cantidad }}</td>
-                                            <td>₲ {{ "{:,.0f}".format(det.precio_unitario or 0).replace(',', '.') }}</td>
-                                            <td class="fw-bold">₲ {{ "{:,.0f}".format(det.subtotal or 0).replace(',', '.') }}</td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                                {% endif %}
-
-                                <h6 class="fw-bold text-secondary mb-2">Cronograma de Cuotas Generadas</h6>
-                                <div class="card border shadow-sm bg-white mb-0">
-                                    <div class="card-body p-2">
-                                        <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-                                            <table class="table table-sm table-borderless mb-0 align-middle small">
-                                                <thead class="text-muted border-bottom sticky-top bg-white">
-                                                    <tr>
-                                                        <th class="py-1 text-center" style="width: 15%;">N° Cuota</th>
-                                                        <th class="py-1" style="width: 45%;">Vencimiento</th>
-                                                        <th class="py-1 text-end" style="width: 25%;">Valor</th>
-                                                        <th class="py-1 text-center" style="width: 15%;">Estado</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for cuota in v.cuotas %}
-                                                    <tr class="border-bottom border-light">
-                                                        <td class="text-center fw-bold text-dark">{{ cuota.numero_cuota }}</td>
-                                                        <td class="text-muted">{{ cuota.vencimiento_label }}</td>
-                                                        <td class="text-end fw-bold text-success">₲ {{ "{:,.0f}".format(cuota.valor or 0).replace(',', '.') }}</td>
-                                                        <td class="text-center">
-                                                            <span class="badge {% if cuota.estado == 'Pagado' %}bg-success{% else %}bg-warning text-dark{% endif %} px-2 py-1">
-                                                                {{ cuota.estado }}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                    {% else %}
-                                                    <tr><td colspan="4" class="text-center text-muted py-3">No hay cuotas asociadas.</td></tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
                 {% else %}
                 <tr><td colspan="9" class="text-center py-4 text-muted">No hay ventas registradas.</td></tr>
                 {% endfor %}
@@ -214,8 +111,114 @@
     </div>
 </div>
 
+<!-- 2. MODALES DE DETALLES (FUERA DE LA TABLA PARA NO ROMPER EL HTML) -->
+{% for v in ventas %}
+<div class="modal fade" id="modalDetallesVenta{{ v.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice-dollar me-2"></i> Detalle de la Venta #{{ v.id }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Paciente:</strong> {{ v.cliente.nombre if v.cliente else 'Particular' }}</p>
+                        <p class="mb-1"><strong>Plan / Paquete:</strong> {{ v.paquete.nombre if v.paquete else 'Ninguno (Servicios sueltos)' }}</p>
+                        <p class="mb-1"><strong>Fecha:</strong> {{ v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else '-' }}</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <p class="mb-1"><strong>Estado:</strong> {{ v.estado }}</p>
+                        <p class="mb-1"><strong>Total Facturado:</strong> <span class="text-success fw-bold">₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</span></p>
+                    </div>
+                </div>
+
+                <hr>
+
+                <h6 class="fw-bold text-secondary mb-2">Desglose Financiero y Márgenes</h6>
+                <div class="bg-light p-3 rounded mb-3">
+                    <div class="d-flex justify-content-between mb-1"><span>Facturación Bruta:</span> <strong>₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</strong></div>
+                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) IVA (÷ 11):</span> <strong>₲ {{ "{:,.0f}".format(v.iva or 0).replace(',', '.') }}</strong></div>
+                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Tarifa de tarjeta:</span> <strong>₲ {{ "{:,.0f}".format(v.tarifa_pasarela or 0).replace(',', '.') }}</strong></div>
+                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Costo de servicios:</span> <strong>₲ {{ "{:,.0f}".format(v.costo_servicios or 0).replace(',', '.') }}</strong></div>
+                    <hr class="my-2">
+                    <div class="d-flex justify-content-between mb-1 fw-bold"><span>Margen de contribución:</span> <span class="text-primary">₲ {{ "{:,.0f}".format(v.margen_contribucion or 0).replace(',', '.') }}</span></div>
+                    <div class="d-flex justify-content-between mb-1 text-danger small"><span>(-) Costo fijo por plan:</span> <strong>₲ {{ "{:,.0f}".format(v.costo_fijo_plan or 0).replace(',', '.') }}</strong></div>
+                    <hr class="my-2">
+                    <div class="d-flex justify-content-between fw-bold text-success fs-5">
+                        <span>Ganancia neta del plan:</span>
+                        <span>₲ {{ "{:,.0f}".format(v.ganancia_plan or 0).replace(',', '.') }}</span>
+                    </div>
+                </div>
+
+                {% if v.detalles %}
+                <h6 class="fw-bold text-secondary mb-2">Servicios Avulsos / Extras incluidos</h6>
+                <table class="table table-sm table-bordered mb-3">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Servicio</th>
+                            <th>Cantidad</th>
+                            <th>Precio Unitario</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for det in v.detalles %}
+                        <tr>
+                            <td>{{ det.servicio.nombre if det.servicio else '-' }}</td>
+                            <td>{{ det.cantidad }}</td>
+                            <td>₲ {{ "{:,.0f}".format(det.precio_unitario or 0).replace(',', '.') }}</td>
+                            <td class="fw-bold">₲ {{ "{:,.0f}".format(det.subtotal or 0).replace(',', '.') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+
+                <h6 class="fw-bold text-secondary mb-2">Cronograma de Cuotas Generadas</h6>
+                <div class="card border shadow-sm bg-white mb-0">
+                    <div class="card-body p-2">
+                        <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                            <table class="table table-sm table-borderless mb-0 align-middle small">
+                                <thead class="text-muted border-bottom sticky-top bg-white">
+                                    <tr>
+                                        <th class="py-1 text-center" style="width: 15%;">N° Cuota</th>
+                                        <th class="py-1" style="width: 45%;">Vencimiento</th>
+                                        <th class="py-1 text-end" style="width: 25%;">Valor</th>
+                                        <th class="py-1 text-center" style="width: 15%;">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for cuota in v.cuotas %}
+                                    <tr class="border-bottom border-light">
+                                        <td class="text-center fw-bold text-dark">{{ cuota.numero_cuota }}</td>
+                                        <td class="text-muted">{{ cuota.vencimiento_label }}</td>
+                                        <td class="text-end fw-bold text-success">₲ {{ "{:,.0f}".format(cuota.valor or 0).replace(',', '.') }}</td>
+                                        <td class="text-center">
+                                            <span class="badge {% if cuota.estado == 'Pagado' %}bg-success{% elif cuota.estado == 'Cancelada' %}bg-secondary{% else %}bg-warning text-dark{% endif %} px-2 py-1">
+                                                {{ cuota.estado }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td colspan="4" class="text-center text-muted py-3">No hay cuotas asociadas.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
 <!-- Modal Nueva Venta -->
-<div class="modal fade" id="modalVenta" tabindex="-1">
+<div class="modal fade" id="modalVenta" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST" onsubmit="limpiarFormatoVentas()">
