@@ -383,7 +383,6 @@ function agregarServicioAvulso() {
     contenedor.appendChild(nuevaFila);
 }
 
-// Formateador automático de puntos en miles para inputs de dinero
 document.addEventListener('input', function (e) {
     if (e.target.classList.contains('moneda-input')) {
         let valorLimpio = e.target.value.replace(/\D/g, '');
@@ -419,8 +418,6 @@ function actualizarDatosPaquete() {
     let formaPago = formaPagoSelect ? formaPagoSelect.value : '';
 
     let iva = precio / 11;
-    
-    // Aplicar tarifa de tarjeta solo si la forma de pago incluye Crédito o Tarjeta
     let tarifa = 0;
     if (formaPago.toLowerCase().includes('crédito') || formaPago.toLowerCase().includes('tarjeta')) {
         tarifa = precio * 0.033;
