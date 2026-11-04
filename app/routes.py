@@ -113,7 +113,7 @@ def pyg():
                 for item in v.paquete.items:
                     nombre_srv = (item.servicio.nombre if item.servicio else '').strip().lower()
                     
-                    # Coincidencia flexible por palabras clave
+                    # Coincidencia flexible por palabras clave (ej: 'nutricionista' vs 'nutrición')
                     es_match = False
                     if esp_lower and (esp_lower in nombre_srv or nombre_srv in esp_lower):
                         es_match = True
