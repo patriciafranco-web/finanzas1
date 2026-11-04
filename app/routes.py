@@ -41,6 +41,21 @@ def logout():
     logout_user()
     return redirect(url_for('main.login'))
 
+# ==========================================
+# RUTA TEMPORAL PARA ACTUALIZAR LA BASE DE DATOS
+# ==========================================
+@bp.route('/actualizar-db-urgente')
+@login_required
+def actualizar_db_urgente():
+    if current_user.username.lower() == 'recepcion':
+        return "No autorizado", 403
+    try:
+        db.session.execute(db.text('ALTER TABLE cliente ADD COLUMN fecha_nacimiento DATE;'))
+        db.session.commit()
+        return "¡Columna 'fecha_nacimiento' agregada exitosamente en la base de datos!"
+    except Exception as e:
+        return f"Aviso (es posible que la columna ya exista): {str(e)}"
+
 @bp.route('/')
 @login_required
 def pyg():
@@ -880,7 +895,6 @@ def agregar_cliente():
     telefono = request.form.get('telefono')
     email = request.form.get('email')
     
-    # Capturar fecha de nacimiento para el control de cumples
     fecha_nac_str = request.form.get('fecha_nacimiento')
     fecha_nacimiento = datetime.strptime(fecha_nac_str, '%Y-%m-%d').date() if fecha_nac_str else None
 
@@ -904,7 +918,6 @@ def editar_cliente(id):
     cl.telefono = request.form.get('telefono')
     cl.email = request.form.get('email')
     
-    # Actualizar fecha de nacimiento
     fecha_nac_str = request.form.get('fecha_nacimiento')
     cl.fecha_nacimiento = datetime.strptime(fecha_nac_str, '%Y-%m-%d').date() if fecha_nac_str else None
 
@@ -942,7 +955,7 @@ def agregar_medico():
     nombre = request.form.get('nombre')
     especialidad = request.form.get('especialidad')
     porcentaje_medico = limpiar_monto(request.form.get('porcentaje_medico') or 70)
-    porcentaje_clinica = limpiar_monto(request.form.get('porcentaje_clinica') or 30) # Permite definir porcentaje de clínica editable
+    porcentaje_clinica = limpiar_monto(request.form.get('porcentaje_clinica') or 30)
     db.session.add(Medico(nombre=nombre, especialidad=especialidad, porcentaje_medico=porcentaje_medico, porcentaje_clinica=porcentaje_clinica))
     db.session.commit()
     flash('Profesional médico agregado con éxito.', 'success')
@@ -958,7 +971,7 @@ def editar_medico(id):
     m.nombre = request.form.get('nombre')
     m.especialidad = request.form.get('especialidad')
     m.porcentaje_medico = limpiar_monto(request.form.get('porcentaje_medico') or 70)
-    m.porcentaje_clinica = limpiar_monto(request.form.get('porcentaje_clinica') or 30) # Permite editar el porcentaje de la clínica
+    m.porcentaje_clinica = limpiar_monto(request.form.get('porcentaje_clinica') or 30)
     db.session.commit()
     flash('Médico actualizado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
