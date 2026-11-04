@@ -3,15 +3,19 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h2>Estado de Resultados (Pérdidas y Ganancias - PyG)</h2>
-        <p class="text-muted mb-0">Resumen financiero general de ingresos, costos y utilidad neta</p>
+        <p class="text-muted mb-0">Resumen financiero general de ingresos, costos y utilidad neta por rango de fechas</p>
     </div>
     <div>
         <form method="GET" class="d-flex align-items-center gap-2">
-            <select class="form-select form-select-sm fw-bold" name="periodo" onchange="this.form.submit()">
-                <option value="Noviembre 2026" {% if selected_periodo == 'Noviembre 2026' or not selected_periodo %}selected{% endif %}>Noviembre 2026</option>
-                <option value="Octubre 2026" {% if selected_periodo == 'Octubre 2026' %}selected{% endif %}>Octubre 2026</option>
-                <option value="Septiembre 2026" {% if selected_periodo == 'Septiembre 2026' %}selected{% endif %}>Septiembre 2026</option>
-            </select>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light">Desde</span>
+                <input type="date" class="form-control" name="fecha_desde" value="{{ selected_desde }}">
+            </div>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light">Hasta</span>
+                <input type="date" class="form-control" name="fecha_hasta" value="{{ selected_hasta }}">
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary fw-bold px-3">Filtrar</button>
         </form>
     </div>
 </div>
@@ -41,10 +45,10 @@
     </div>
 </div>
 
-<!-- Bloque de Planes Vendidos en el Mes -->
+<!-- Bloque de Planes Vendidos en el Período -->
 <div class="card shadow-sm mb-4">
     <div class="card-body">
-        <h5 class="fw-bold mb-3">Planes vendidos en el mes</h5>
+        <h5 class="fw-bold mb-3">Planes vendidos en el período</h5>
         <div class="row g-3">
             <div class="col-md-6">
                 <div class="p-3 bg-light rounded border">
@@ -69,7 +73,7 @@
 <div class="card shadow-sm">
     <div class="card-header bg-white fw-bold">
         Valor por profesional
-        <span class="text-muted small fw-normal d-block">Consultas y honorarios del mes, según los planes vendidos</span>
+        <span class="text-muted small fw-normal d-block">Consultas y honorarios del período, según los planes vendidos</span>
     </div>
     <div class="card-body p-0">
         <table class="table table-hover mb-0 align-middle">
