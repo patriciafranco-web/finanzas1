@@ -12,50 +12,89 @@
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>Fecha Emisión</th>
-                    <th>Concepto</th>
                     <th>Cliente / Paciente</th>
-                    <th>Vencimiento</th>
-                    <th>Moneda</th>
-                    <th>Monto</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
+                    <th>Resumen de Cuotas</th>
+                    <th>Monto Total Acumulado</th>
+                    <th>Pendientes</th>
+                    <th class="text-center">Acciones / Desplegar</th>
                 </tr>
             </thead>
             <tbody>
-                {% for x in cxc_list %}
-                <tr>
-                    <td>{{ x.fecha_emision.strftime('%d/%m/%Y') if x.fecha_emision else '-' }}</td>
-                    <td class="fw-bold">{{ x.concepto }}</td>
-                    <td>{{ x.cliente.nombre if x.cliente else 'Particular' }}</td>
-                    <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}</td>
-                    <td>{{ x.moneda }}</td>
-                    <td class="fw-bold text-danger">₲ {{ "{:,.0f}".format(x.monto or 0).replace(',', '.') }}</td>
-                    <td>
-                        {% if x.estado == 'Pagado' %}
-                        <span class="badge bg-success">Pagado</span>
-                        {% else %}
-                        <span class="badge bg-warning text-dark">Pendiente</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if x.estado != 'Pagado' %}
-                        <button class="btn btn-sm btn-success fw-bold" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#modalRegistrarCobro"
-                                data-id="{{ x.id }}"
-                                data-concepto="{{ x.concepto }}"
-                                data-vencimiento="{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}"
-                                data-saldo="{{ x.monto }}"
-                                onclick="llenarModalCobro(this)">
-                            <i class="fas fa-hand-holding-usd me-1"></i> Cobrar
-                        </button>
-                        {% endif %}
-                    </td>
-                </tr>
+                {% if cxc_list %}
+                    <!-- Agrupamos dinámicamente las cuentas por cobrar según el nombre del cliente -->
+                    {% for cliente_nombre, cuotas_grupo in cxc_list | groupby('cliente.nombre') %}
+                    <tr>
+                        <td class="fw-bold text-primary"><i class="fa-solid fa-user me-1"></i> {{ cliente_nombre }}</td>
+                        <td>{{ cuotas_grupo | length }} cuota(s) en total</td>
+                        <td class="fw-bold">₲ {{ "{:,.0f}".format(cuotas_grupo | sum(attribute='monto')).replace(',', '.') }}</td>
+                        <td>
+                            {% set pendientes = cuotas_grupo | selectattr('estado', 'equalto', 'Pendiente') | list %}
+                            <span class="badge {% if pendientes | length > 0 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                {{ pendientes | length }} pendientes
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-primary fw-bold px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGrupo{{ loop.index }}">
+                                <i class="fa-solid fa-bars-staggered me-1"></i> Ver cuotas <i class="fa-solid fa-chevron-down ms-1"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <!-- Fila deslizante colapsable con el detalle de las cuotas de este cliente -->
+                    <tr class="collapse bg-light" id="collapseGrupo{{ loop.index }}">
+                        <td colspan="5" class="p-3">
+                            <table class="table table-sm table-bordered bg-white mb-0 align-middle">
+                                <thead class="table-secondary">
+                                    <tr>
+                                        <th>Fecha Emisión</th>
+                                        <th>Concepto</th>
+                                        <th>Vencimiento</th>
+                                        <th>Moneda</th>
+                                        <th>Monto</th>
+                                        <th>Estado</th>
+                                        <th class="text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for x in cuotas_grupo %}
+                                    <tr>
+                                        <td>{{ x.fecha_emision.strftime('%d/%m/%Y') if x.fecha_emision else '-' }}</td>
+                                        <td class="fw-bold text-dark">{{ x.concepto }}</td>
+                                        <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}</td>
+                                        <td>{{ x.moneda }}</td>
+                                        <td class="fw-bold text-danger">₲ {{ "{:,.0f}".format(x.monto or 0).replace(',', '.') }}</td>
+                                        <td>
+                                            {% if x.estado == 'Pagado' %}
+                                            <span class="badge bg-success">Pagado</span>
+                                            {% else %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">
+                                            {% if x.estado != 'Pagado' %}
+                                            <button class="btn btn-sm btn-success fw-bold" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#modalRegistrarCobro"
+                                                    data-id="{{ x.id }}"
+                                                    data-concepto="{{ x.concepto }}"
+                                                    data-vencimiento="{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}"
+                                                    data-saldo="{{ x.monto }}"
+                                                    onclick="llenarModalCobro(this)">
+                                                <i class="fas fa-hand-holding-usd me-1"></i> Cobrar
+                                            </button>
+                                            {% else %}
+                                            <span class="text-muted small">Liquidado</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                    {% endfor %}
                 {% else %}
-                <tr><td colspan="8" class="text-center py-4 text-muted">No hay cuentas por cobrar registradas.</td></tr>
-                {% endfor %}
+                    <tr><td colspan="5" class="text-center py-4 text-muted">No hay cuentas por cobrar registradas.</td></tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
@@ -96,7 +135,6 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Monto Recibido</label>
-                            <!-- Añadida la clase moneda-input para formatear puntos de miles -->
                             <input type="text" class="form-control moneda-input" name="monto_recibido" id="inputMontoRecibido" required oninput="calcularEquivalenteCobro()">
                         </div>
                     </div>
@@ -164,7 +202,6 @@ function formatearConPuntos(input) {
 document.addEventListener('input', function(e) {
     if (e.target.classList.contains('moneda-input')) {
         formatearConPuntos(e.target);
-        // Si cambia el monto recibido, recalcular equivalente
         if(e.target.id === 'inputMontoRecibido' || e.target.id === 'inputCotizacion') {
             calcularEquivalenteCobro();
         }
