@@ -104,7 +104,7 @@
 <div class="modal fade" id="modalRegistrarCobro" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form action="{{ url_for('main.registrar_cobro_avanzado') }}" method="POST">
+            <form action="{{ url_for('main.registrar_cobro_avanzado') }}" method="POST" onsubmit="limpiarFormatoCobro()">
                 <div class="modal-header bg-success text-white">
                     <h5 class="modal-title fw-bold"><i class="fas fa-hand-holding-usd me-2"></i> Registrar Cobro de Cuota</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -131,18 +131,21 @@
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Cotización del Día</label>
-                            <input type="text" class="form-control moneda-input" name="cotizacion" id="inputCotizacion" value="1" oninput="calcularEquivalenteCobro()">
+                            <input type="text" class="form-control moneda-input" id="inputCotizacionVisual" value="1" oninput="calcularEquivalenteCobro()">
+                            <input type="hidden" name="cotizacion" id="inputCotizacionReal" value="1">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Monto Recibido</label>
-                            <input type="text" class="form-control moneda-input" name="monto_recibido" id="inputMontoRecibido" required oninput="calcularEquivalenteCobro()">
+                            <input type="text" class="form-control moneda-input" id="inputMontoVisual" required oninput="calcularEquivalenteCobro()">
+                            <input type="hidden" name="monto_recibido" id="inputMontoReal" value="0">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Descuento Concedido (Opcional)</label>
-                            <input type="text" class="form-control moneda-input" name="descuento" value="0" placeholder="0">
+                            <input type="text" class="form-control moneda-input" id="inputDescuentoVisual" value="0" placeholder="0">
+                            <input type="hidden" name="descuento" id="inputDescuentoReal" value="0">
                             <small class="text-muted">Reduce el saldo sin generar dinero recibido.</small>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -187,26 +190,43 @@
 </div>
 
 <script>
-// Función auxiliar para formatear valores con puntos de miles (es-PY)
-function formatearConPuntos(input) {
-    let valorLimpio = input.value.replace(/\D/g, '');
-    if (valorLimpio === '') {
-        input.value = '';
-        return;
-    }
-    let numero = parseInt(valorLimpio, 10);
-    input.value = numero.toLocaleString('es-PY');
-}
-
-// Formateo automático al escribir en cualquier campo con clase moneda-input
 document.addEventListener('input', function(e) {
     if (e.target.classList.contains('moneda-input')) {
-        formatearConPuntos(e.target);
-        if(e.target.id === 'inputMontoRecibido' || e.target.id === 'inputCotizacion') {
-            calcularEquivalenteCobro();
+        let valorLimpio = e.target.value.replace(/\D/g, '');
+        if (valorLimpio !== '') {
+            let numero = parseInt(valorLimpio, 10);
+            e.target.value = numero.toLocaleString('es-PY');
+            
+            if (e.target.id === 'inputMontoVisual') {
+                document.getElementById('inputMontoReal').value = numero;
+            } else if (e.target.id === 'inputCotizacionVisual') {
+                document.getElementById('inputCotizacionReal').value = numero;
+            } else if (e.target.id === 'inputDescuentoVisual') {
+                document.getElementById('inputDescuentoReal').value = numero;
+            }
+        } else {
+            e.target.value = '';
+            if (e.target.id === 'inputMontoVisual') {
+                document.getElementById('inputMontoReal').value = '0';
+            } else if (e.target.id === 'inputCotizacionVisual') {
+                document.getElementById('inputCotizacionReal').value = '1';
+            } else if (e.target.id === 'inputDescuentoVisual') {
+                document.getElementById('inputDescuentoReal').value = '0';
+            }
         }
+        calcularEquivalenteCobro();
     }
 });
+
+function limpiarFormatoCobro() {
+    let mVisual = document.getElementById('inputMontoVisual');
+    let cVisual = document.getElementById('inputCotizacionVisual');
+    let dVisual = document.getElementById('inputDescuentoVisual');
+    
+    if (mVisual) document.getElementById('inputMontoReal').value = mVisual.value.replace(/\./g, '').replace(/,/g, '') || '0';
+    if (cVisual) document.getElementById('inputCotizacionReal').value = cVisual.value.replace(/\./g, '').replace(/,/g, '') || '1';
+    if (dVisual) document.getElementById('inputDescuentoReal').value = dVisual.value.replace(/\./g, '').replace(/,/g, '') || '0';
+}
 
 function llenarModalCobro(button) {
     document.getElementById('cobroCxcId').value = button.getAttribute('data-id');
@@ -215,29 +235,33 @@ function llenarModalCobro(button) {
     let saldo = parseFloat(button.getAttribute('data-saldo')) || 0;
     document.getElementById('lblCobroSaldo').innerText = '₲ ' + saldo.toLocaleString('es-PY', {maximumFractionDigits: 0});
     
-    let inputMonto = document.getElementById('inputMontoRecibido');
-    inputMonto.value = saldo.toLocaleString('es-PY', {maximumFractionDigits: 0});
+    let inputMontoVisual = document.getElementById('inputMontoVisual');
+    let inputMontoReal = document.getElementById('inputMontoReal');
+    inputMontoVisual.value = saldo.toLocaleString('es-PY', {maximumFractionDigits: 0});
+    inputMontoReal.value = saldo;
+    
     calcularEquivalenteCobro();
 }
 
 function toggleMonedaCobro(select) {
-    let cotiz = document.getElementById('inputCotizacion');
+    let cotizVisual = document.getElementById('inputCotizacionVisual');
+    let cotizReal = document.getElementById('inputCotizacionReal');
     if(select.value === 'PYG') {
-        cotiz.value = '1';
-        cotiz.readOnly = true;
+        cotizVisual.value = '1';
+        cotizReal.value = '1';
+        cotizVisual.readOnly = true;
     } else {
-        cotiz.readOnly = false;
-        cotiz.value = select.value === 'USD' ? '7.500' : '1.400'; 
+        cotizVisual.readOnly = false;
+        let defVal = select.value === 'USD' ? '7.500' : '1.400';
+        cotizVisual.value = defVal;
+        cotizReal.value = select.value === 'USD' ? '7500' : '1400';
     }
     calcularEquivalenteCobro();
 }
 
 function calcularEquivalenteCobro() {
-    let montoStr = document.getElementById('inputMontoRecibido').value.replace(/\./g, '').replace(/,/g, '');
-    let cotizStr = document.getElementById('inputCotizacion').value.replace(/\./g, '').replace(/,/g, '');
-    
-    let monto = parseFloat(montoStr) || 0;
-    let cotiz = parseFloat(cotizStr) || 1;
+    let monto = parseFloat(document.getElementById('inputMontoReal').value) || 0;
+    let cotiz = parseFloat(document.getElementById('inputCotizacionReal').value) || 1;
     let totalGs = monto * cotiz;
     document.getElementById('lblEquivalenteGs').innerText = totalGs.toLocaleString('es-PY', {maximumFractionDigits: 0});
 }
