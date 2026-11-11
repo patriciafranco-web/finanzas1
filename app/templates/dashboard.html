@@ -6,11 +6,10 @@
         <p class="text-muted mb-0">Administra tus finanzas y control de caja multimoneda</p>
     </div>
     <div class="d-flex align-items-center gap-3">
-        <!-- Estado del Período según Manual -->
         {% if bloqueos_activos %}
-        <span class="badge bg-danger p-2 fs-6"><i class="fa-solid fa-lock me-1"></i> Octubre 2026 - Bloqueado</span>
+        <span class="badge bg-danger p-2 fs-6"><i class="fa-solid fa-lock me-1"></i> Período Bloqueado</span>
         {% else %}
-        <span class="badge bg-success p-2 fs-6"><i class="fa-solid fa-lock-open me-1"></i> Octubre 2026 - Abierto</span>
+        <span class="badge bg-success p-2 fs-6"><i class="fa-solid fa-lock-open me-1"></i> Período Abierto</span>
         {% endif %}
 
         <div>
@@ -21,7 +20,6 @@
     </div>
 </div>
 
-<!-- Franja amarilla de advertencia si hay período bloqueado -->
 {% if bloqueos_activos %}
 <div class="alert alert-warning border-warning d-flex align-items-center justify-content-between mb-3 shadow-sm" role="alert">
     <div>
@@ -32,14 +30,12 @@
 </div>
 {% endif %}
 
-<!-- Pestaña Única de Transacciones (Sin Cadastros arriba) -->
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
         <a class="nav-link active fw-bold" href="{{ url_for('main.dashboard') }}">Transacciones</a>
     </li>
 </ul>
 
-<!-- Filtros y Botones de Acción del Manual -->
 <form method="GET" action="{{ url_for('main.dashboard') }}" class="card shadow-sm mb-3 p-3 bg-light" id="filterForm">
     <div class="row g-2 align-items-center">
         <div class="col-md-3">
@@ -92,20 +88,15 @@
         <div class="col-md-6 text-end">
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print();"><i class="fa-solid fa-file-pdf text-danger me-1"></i> PDF</button>
             <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-file-excel me-1"></i> Excel</a>
-            
             <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-info btn-sm"><i class="fa-solid fa-file-arrow-down me-1"></i> Plantilla</a>
-            
             <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#modalImportar"><i class="fa-solid fa-file-arrow-up me-1"></i> Importar</button>
-            
             <a href="{{ url_for('main.bloqueos_vista') }}" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-lock me-1"></i> Bloqueos</a>
-
-            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalTransferencia"><i class="fa-solid fa-right-left me-1"></i> Transferência</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalTransferencia"><i class="fa-solid fa-right-left me-1"></i> Transferencia</button>
             <button type="button" class="btn btn-primary btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#modalTransaccion" {% if bloqueos_activos %}disabled title="Período bloqueado"{% endif %}><i class="fa-solid fa-plus me-1"></i> Nueva Transacción</button>
         </div>
     </div>
 </form>
 
-<!-- Tabla Transacciones -->
 <div class="card shadow-sm">
     <div class="card-body p-0">
         <table class="table table-hover mb-0 align-middle">
@@ -125,7 +116,7 @@
             <tbody>
                 {% for t in transacciones %}
                 <tr>
-                    <td>{{ t.fecha.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ t.fecha.strftime('%d/%m/%Y') if t.fecha else '-' }}</td>
                     <td>
                         <span class="fw-bold">{{ t.descripcion }}</span><br>
                         <small class="text-muted"><i class="fa-solid fa-user me-1"></i>{{ t.cliente.nombre if t.cliente else 'Particular' }}</small>
@@ -136,10 +127,10 @@
                     <td>{{ t.centro_costo.nombre if t.centro_costo else '-' }}</td>
                     <td><span class="badge bg-light text-dark border">{{ t.metodo_pago }}</span></td>
                     <td class="fw-bold {% if t.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
-                        ₲ {{ "{:,.0f}".format(t.monto).replace(',', '.') }}
+                        ₲ {{ "{:,.0f}".format(t.monto or 0).replace(',', '.') }}
                     </td>
-                    <td class="fw-bold {% if t.saldo_resultante >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        ₲ {{ "{:,.0f}".format(t.saldo_resultante).replace(',', '.') }}
+                    <td class="fw-bold {% if (t.saldo_resultante or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        ₲ {{ "{:,.0f}".format(t.saldo_resultante or 0).replace(',', '.') }}
                     </td>
                     <td>
                         <form action="{{ url_for('main.eliminar_transaccion', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Está seguro de que desea excluir esta transacción? Esta acción no se puede deshacer.');">
@@ -235,7 +226,7 @@
 <div class="modal fade" id="modalTransferencia" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ url_for('main.transferencia') }}" method="POST" onsubmit="limpiarFormatoTransferencia()">
+            <form action="{{ url_for('main.transferir_cuentas') }}" method="POST" onsubmit="limpiarFormatoTransferencia()">
                 <div class="modal-header">
                     <h5 class="modal-title">Transferencia entre Cuentas</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -258,7 +249,7 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Monto a Transferir (Gs.)</label>
+                        <label class="form-label">Monto a Transferir</label>
                         <input type="text" class="form-control moneda-input" id="inputMontoTransfVisual" required placeholder="500.000">
                         <input type="hidden" name="monto" id="inputMontoTransfReal">
                     </div>
