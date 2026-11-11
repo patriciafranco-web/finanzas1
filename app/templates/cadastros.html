@@ -53,7 +53,7 @@
                         {% for c in cuentas %}
                         <tr>
                             <td class="fw-bold">
-                                <span class="cuenta-dot d-inline-block rounded-circle me-2" style="width: 12px; height: 12px;" data-color="{{ c.color or '#17b978' }}"></span>
+                                <span class="cuenta-dot d-inline-block rounded-circle me-2" style="width: 12px; height: 12px; background-color: {{ c.color or '#17b978' }};"></span>
                                 {{ c.nombre }}
                             </td>
                             <td>{{ c.tipo_cuenta }}</td>
@@ -100,6 +100,10 @@
                                             <div class="mb-3">
                                                 <label class="form-label">Saldo Inicial</label>
                                                 <input type="number" step="any" class="form-control" name="saldo_inicial" value="{{ c.saldo_inicial or 0 }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Color identificador</label>
+                                                <input type="color" class="form-control form-control-color w-100" name="color" value="{{ c.color or '#17b978' }}">
                                             </div>
                                         </div>
                                         <div class="modal-footer">
@@ -227,7 +231,7 @@
                         <tr>
                             <td class="fw-bold">{{ m.nombre }}</td>
                             <td>{{ m.especialidad or '-' }}</td>
-                            <td><span class="badge bg-success">{{ m.porcentaje_medico }}%</span></td>
+                            <td><span class="badge bg-success">{{ m.porcentaje_medico or 70 }}%</span></td>
                             <td><span class="badge bg-primary">{{ m.porcentaje_clinica if m.porcentaje_clinica is not none else 30 }}%</span></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarMedico{{ m.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
@@ -258,7 +262,7 @@
                                             <div class="row">
                                                 <div class="col-md-6 mb-3">
                                                     <label class="form-label">% Comisión Médico</label>
-                                                    <input type="number" step="any" class="form-control" name="porcentaje_medico" value="{{ m.porcentaje_medico }}" required>
+                                                    <input type="number" step="any" class="form-control" name="porcentaje_medico" value="{{ m.porcentaje_medico or 70 }}" required>
                                                 </div>
                                                 <div class="col-md-6 mb-3">
                                                     <label class="form-label">% Parte Clínica</label>
@@ -307,7 +311,7 @@
                         <tr>
                             <td class="fw-bold">{{ s.nombre }}</td>
                             <td><span class="badge bg-secondary">{{ s.moneda }}</span></td>
-                            <td class="text-success">₲ {{ "{:,.0f}".format(s.precio).replace(',', '.') }}</td>
+                            <td class="text-success">₲ {{ "{:,.0f}".format(s.precio or 0).replace(',', '.') }}</td>
                             <td>₲ {{ "{:,.0f}".format(s.costo_unitario or 0).replace(',', '.') }}</td>
                             <td>{{ s.reparto_adicional or 0 }}%</td>
                             <td>
@@ -334,7 +338,7 @@
                                             </div>
                                             <div class="row">
                                                 <div class="col-md-6 mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG" {% if s.moneda == 'PYG' %}selected{% endif %}>PYG (₲)</option><option value="USD" {% if s.moneda == 'USD' %}selected{% endif %}>USD ($)</option></select></div>
-                                                <div class="col-md-6 mb-3"><label class="form-label">Precio de Venta</label><input type="text" class="form-control moneda-input" name="precio" value="{{ '{:,.0f}'.format(s.precio).replace(',', '.') }}"></div>
+                                                <div class="col-md-6 mb-3"><label class="form-label">Precio de Venta</label><input type="text" class="form-control moneda-input" name="precio" value="{{ '{:,.0f}'.format(s.precio or 0).replace(',', '.') }}"></div>
                                             </div>
                                             <div class="row">
                                                 <div class="col-md-6 mb-3"><label class="form-label">Costo Unitario (Gs.)</label><input type="text" class="form-control moneda-input" name="costo_unitario" value="{{ '{:,.0f}'.format(s.costo_unitario or 0).replace(',', '.') }}" required></div>
@@ -381,8 +385,8 @@
                         {% for p in paquetes %}
                         <tr>
                             <td class="fw-bold text-primary">{{ p.nombre }}</td>
-                            <td>{{ p.duracion_meses }} meses</td>
-                            <td class="fw-bold">₲ {{ "{:,.0f}".format(p.precio).replace(',', '.') }}</td>
+                            <td>{{ p.duracion_meses or 4 }} meses</td>
+                            <td class="fw-bold">₲ {{ "{:,.0f}".format(p.precio or 0).replace(',', '.') }}</td>
                             <td>{{ p.items|length }} ítems</td>
                             <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(p.items | sum(attribute='costo_total_item')).replace(',', '.') }}</td>
                             <td>
@@ -410,11 +414,11 @@
                                                 </div>
                                                 <div class="col-md-3 mb-3">
                                                     <label class="form-label fw-bold">Precio Total (₲)</label>
-                                                    <input type="text" class="form-control moneda-input" name="precio" value="{{ '{:,.0f}'.format(p.precio).replace(',', '.') }}" required>
+                                                    <input type="text" class="form-control moneda-input" name="precio" value="{{ '{:,.0f}'.format(p.precio or 0).replace(',', '.') }}" required>
                                                 </div>
                                                 <div class="col-md-3 mb-3">
                                                     <label class="form-label fw-bold">Duración (Meses)</label>
-                                                    <input type="number" class="form-control" name="duracion_meses" value="{{ p.duracion_meses }}" required>
+                                                    <input type="number" class="form-control" name="duracion_meses" value="{{ p.duracion_meses or 4 }}" required>
                                                 </div>
                                             </div>
 
@@ -439,13 +443,14 @@
                                                         </select>
                                                     </div>
                                                     <div class="col-md-2">
-                                                        <input type="number" name="cantidad[]" class="form-control form-control-sm" value="{{ item.cantidad }}" min="1" required>
+                                                        <input type="number" name="cantidad[]" class="form-control form-control-sm" value="{{ item.cantidad or 1 }}" min="1" required>
                                                     </div>
                                                     <div class="col-md-2">
-                                                        <input type="text" name="costo_unitario[]" class="form-control form-control-sm costo-input moneda-input" value="{{ '{:,.0f}'.format(item.costo_unitario if item.costo_unitario > 0 else (item.servicio.costo_unitario if item.servicio else 0)).replace(',', '.') }}" required>
+                                                        {% set costo_item_val = item.costo_unitario if (item.costo_unitario or 0) > 0 else (item.servicio.costo_unitario if (item.servicio and item.servicio.costo_unitario) else 0) %}
+                                                        <input type="text" name="costo_unitario[]" class="form-control form-control-sm costo-input moneda-input" value="{{ '{:,.0f}'.format(costo_item_val).replace(',', '.') }}" required>
                                                     </div>
                                                     <div class="col-md-2">
-                                                        <input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm reparto-input" value="{{ item.reparto_adicional }}">
+                                                        <input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm reparto-input" value="{{ item.reparto_adicional or 0 }}">
                                                     </div>
                                                     <div class="col-md-1">
                                                         <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button>
@@ -610,6 +615,7 @@
                     <div class="mb-3"><label class="form-label">Tipo de Cuenta</label><select class="form-select" name="tipo_cuenta"><option value="Caja Efectivo">Caja Efectivo</option><option value="Banco">Banco</option><option value="Tarjeta">Tarjeta</option></select></div>
                     <div class="mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG">PYG (₲)</option><option value="USD">USD ($)</option><option value="BRL">BRL (R$)</option></select></div>
                     <div class="mb-3"><label class="form-label">Saldo Inicial</label><input type="number" step="any" class="form-control" name="saldo_inicial" value="0" required></div>
+                    <div class="mb-3"><label class="form-label">Color identificador</label><input type="color" class="form-control form-control-color w-100" name="color" value="#17b978"></div>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar Cuenta</button></div>
             </form>
