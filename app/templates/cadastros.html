@@ -13,7 +13,7 @@
     </div>
 </div>
 
-<!-- Pestañas de Cadastros (Adaptadas para recepción o administrador) -->
+<!-- Pestañas de Cadastros -->
 <ul class="nav nav-tabs mb-4" id="cadastrosTabs" role="tablist">
     {% if current_user.username.lower() != 'recepcion' %}
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-cuentas" type="button">Cuentas</button></li>
@@ -58,7 +58,7 @@
                             </td>
                             <td>{{ c.tipo_cuenta }}</td>
                             <td><span class="badge bg-secondary">{{ c.moneda }}</span></td>
-                            <td>{{ "{:,.2f}".format(c.saldo_inicial) }}</td>
+                            <td>{{ "{:,.2f}".format(c.saldo_inicial or 0) }}</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCuenta{{ c.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
                                 <form action="{{ url_for('main.eliminar_cuenta', id=c.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir esta cuenta?');" class="d-inline">
@@ -86,6 +86,7 @@
                                                 <select class="form-select" name="tipo_cuenta">
                                                     <option value="Caja Efectivo" {% if c.tipo_cuenta == 'Caja Efectivo' %}selected{% endif %}>Caja Efectivo</option>
                                                     <option value="Banco" {% if c.tipo_cuenta == 'Banco' %}selected{% endif %}>Banco</option>
+                                                    <option value="Tarjeta" {% if c.tipo_cuenta == 'Tarjeta' %}selected{% endif %}>Tarjeta</option>
                                                 </select>
                                             </div>
                                             <div class="mb-3">
@@ -95,6 +96,10 @@
                                                     <option value="USD" {% if c.moneda == 'USD' %}selected{% endif %}>USD</option>
                                                     <option value="BRL" {% if c.moneda == 'BRL' %}selected{% endif %}>BRL</option>
                                                 </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Saldo Inicial</label>
+                                                <input type="number" step="any" class="form-control" name="saldo_inicial" value="{{ c.saldo_inicial or 0 }}" required>
                                             </div>
                                         </div>
                                         <div class="modal-footer">
@@ -552,6 +557,9 @@
                             <td class="fw-bold">{{ cc.nombre }}</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCentro{{ cc.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
+                                <form action="{{ url_for('main.eliminar_centro_costo', id=cc.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar este centro de costo?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
+                                </form>
                             </td>
                         </tr>
 
@@ -599,9 +607,9 @@
                 <div class="modal-header"><h5 class="modal-title">Nueva Cuenta</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
                 <div class="modal-body">
                     <div class="mb-3"><label class="form-label">Nombre</label><input type="text" class="form-control" name="nombre" required placeholder="Ej: Caja Principal Gs."></div>
-                    <div class="mb-3"><label class="form-label">Tipo de Cuenta</label><select class="form-select" name="tipo_cuenta"><option value="Caja Efectivo">Caja Efectivo</option><option value="Banco">Banco</option></select></div>
+                    <div class="mb-3"><label class="form-label">Tipo de Cuenta</label><select class="form-select" name="tipo_cuenta"><option value="Caja Efectivo">Caja Efectivo</option><option value="Banco">Banco</option><option value="Tarjeta">Tarjeta</option></select></div>
                     <div class="mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG">PYG (₲)</option><option value="USD">USD ($)</option><option value="BRL">BRL (R$)</option></select></div>
-                    <div class="mb-3"><label class="form-label">Saldo Inicial</label><input type="number" step="any" class="form-control" name="saldo_inicial" value="0"></div>
+                    <div class="mb-3"><label class="form-label">Saldo Inicial</label><input type="number" step="any" class="form-control" name="saldo_inicial" value="0" required></div>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar Cuenta</button></div>
             </form>
@@ -679,7 +687,7 @@
     </div>
 </div>
 
-<!-- Modal Paquete (Con Encabezados y Autocompletado) -->
+<!-- Modal Paquete -->
 <div class="modal fade" id="modalPaquete" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -697,7 +705,6 @@
                     
                     <h6 class="fw-bold text-secondary mt-3 mb-2">Servicios Incluidos</h6>
                     
-                    <!-- Encabezados de columnas -->
                     <div class="row text-muted small fw-bold mb-1 px-1">
                         <div class="col-md-5">Servicio</div>
                         <div class="col-md-2">Cantidad</div>
@@ -772,7 +779,6 @@ function agregarFilaItem() {
     contenedor.appendChild(nuevaFila);
 }
 
-// Autocompletar costo unitario y reparto adicional al seleccionar un servicio en el paquete
 function autocompletarDatosServicio(select) {
     let opt = select.options[select.selectedIndex];
     let costo = parseFloat(opt.getAttribute('data-costo')) || 0;
@@ -790,7 +796,6 @@ function autocompletarDatosServicio(select) {
     }
 }
 
-// Formateador automático de puntos en miles para inputs de dinero y costos
 function formatearConPuntos(input) {
     let valorLimpio = input.value.replace(/\D/g, '');
     if (valorLimpio === '') {
@@ -808,7 +813,6 @@ document.addEventListener('input', function (e) {
 });
 
 document.addEventListener("DOMContentLoaded", function () {
-    // Formatear automáticamente todos los inputs numéricos al cargar la página o abrir modales
     document.querySelectorAll('.moneda-input, .costo-input').forEach(function(input) {
         if (input.value) {
             formatearConPuntos(input);
