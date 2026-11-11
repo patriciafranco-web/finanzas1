@@ -41,9 +41,6 @@ def logout():
     logout_user()
     return redirect(url_for('main.login'))
 
-# ==========================================
-# RUTA TEMPORAL PARA ACTUALIZAR LA BASE DE DATOS
-# ==========================================
 @bp.route('/actualizar-db-urgente')
 @login_required
 def actualizar_db_urgente():
@@ -89,7 +86,6 @@ def pyg():
     
     total_planes = sum(1 for v in ventas if v.paquete_id is not None)
     
-    # Calcular Consultas y Honorarios por profesional de forma inteligente y flexible
     valor_por_profesional = []
     medicos = Medico.query.all()
     
@@ -100,14 +96,12 @@ def pyg():
         nombre_med_lower = (m.nombre or '').strip().lower()
         porc_medico = (m.porcentaje_medico or 70.0) / 100.0
 
-        # 1. Prestaciones directas registradas en Honorarios Médicos
         prestaciones_directas = PrestacionServicio.query.filter_by(medico_id=m.id).all()
         for p in prestaciones_directas:
             consultas_totales += (p.cantidad or 1)
             precio_srv = p.servicio.precio if p.servicio else 0.0
             valor_total_medico += precio_srv * porc_medico
 
-        # 2. Ítems de paquetes vendidos y servicios avulsos cruzados por especialidad o nombre
         for v in ventas:
             if v.paquete and v.paquete.items:
                 for item in v.paquete.items:
@@ -275,18 +269,6 @@ def desbloquear_periodo(id):
     b.motivo_desbloqueo = motivo
     db.session.commit()
     flash('Período desbloqueado con éxito.', 'info')
-    return redirect(url_for('main.dashboard'))
-
-@bp.route('/desbloquear-todo', methods=['POST'])
-@login_required
-def desbloquear_todo():
-    motivo = request.form.get('motivo', '')
-    bloqueos = BloqueoPeriodo.query.filter_by(estado='Bloqueado').all()
-    for b in bloqueos:
-        b.estado = 'Liberado'
-        b.motivo_desbloqueo = motivo
-    db.session.commit()
-    flash('Todos los bloqueos han sido liberados.', 'warning')
     return redirect(url_for('main.dashboard'))
 
 @bp.route('/ventas')
@@ -559,38 +541,6 @@ def registrar_cobro_avanzado():
     
     return redirect(url_for('main.cxc_vista'))
 
-@bp.route('/transferencia', methods=['POST'])
-@login_required
-def transferencia():
-    if current_user.username.lower() == 'recepcion':
-        return redirect(url_for('main.ventas_vista'))
-    cuenta_origen_id = int(request.form.get('cuenta_origen_id'))
-    cuenta_destino_id = int(request.form.get('cuenta_destino_id'))
-    monto = limpiar_monto(request.form.get('monto') or 0)
-    
-    if cuenta_origen_id != cuenta_destino_id and monto > 0:
-        orig = Cuenta.query.get(cuenta_origen_id)
-        dest = Cuenta.query.get(cuenta_destino_id)
-        if orig and dest:
-            db.session.add(Transaccion(
-                descripcion=f"Transferencia saliente a {dest.nombre}",
-                tipo='Salida',
-                monto=monto,
-                cuenta_id=cuenta_origen_id,
-                metodo_pago='Transferencia',
-                fecha=datetime.utcnow()
-            ))
-            db.session.add(Transaccion(
-                descripcion=f"Transferencia entrante de {orig.nombre}",
-                tipo='Ingreso',
-                monto=monto,
-                cuenta_id=cuenta_destino_id,
-                metodo_pago='Transferencia',
-                fecha=datetime.utcnow()
-            ))
-            db.session.commit()
-    return redirect(url_for('main.dashboard'))
-
 @bp.route('/cadastros')
 @login_required
 def cadastros():
@@ -847,7 +797,6 @@ def honorarios():
     clientes = Cliente.query.all()
     prestaciones = PrestacionServicio.query.order_by(PrestacionServicio.fecha.desc()).all()
     
-    # Inyectar prestaciones virtuales automáticas de los planes vendidos
     prestaciones_virtuales = []
     ventas = Venta.query.filter(Venta.estado != 'Cancelada').all()
     for v in ventas:
