@@ -546,30 +546,25 @@ def registrar_cobro_avanzado():
 @bp.route('/cadastros')
 @login_required
 def cadastros():
-    try:
-        cuentas = Cuenta.query.all()
-        clientes = Cliente.query.all()
-        medicos = Medico.query.all()
-        servicios = Servicio.query.all()
-        paquetes = Paquete.query.all()
-        cxc_list = CuentaPorCobrar.query.all()
-        cxp_list = CuentaPorPagar.query.all()
-        categorias = Categoria.query.all()
-        centros_costo = CentroCosto.query.all()
-        
-        return render_template('cadastros.html', 
-                               cuentas=cuentas, 
-                               clientes=clientes, 
-                               medicos=medicos, 
-                               servicios=servicios,
-                               paquetes=paquetes,
-                               cxc_list=cxc_list,
-                               cxp_list=cxp_list,
-                               categorias=categorias,
-                               centros_costo=centros_costo)
-    except Exception as e:
-        flash(f"Error interno al cargar los registros: {str(e)}", "danger")
-        return redirect(url_for('main.dashboard'))
+    cuentas = Cuenta.query.all()
+    clientes = Cliente.query.all()
+    medicos = Medico.query.all()
+    servicios = Servicio.query.all()
+    paquetes = Paquete.query.all()
+    cxc_list = CuentaPorCobrar.query.all()
+    cxp_list = CuentaPorPagar.query.all()
+    categorias = Categoria.query.all()
+    centros_costo = CentroCosto.query.all()
+    return render_template('cadastros.html', 
+                           cuentas=cuentas, 
+                           clientes=clientes, 
+                           medicos=medicos, 
+                           servicios=servicios,
+                           paquetes=paquetes,
+                           cxc_list=cxc_list,
+                           cxp_list=cxp_list,
+                           categorias=categorias,
+                           centros_costo=centros_costo)
 
 @bp.route('/agregar-categoria', methods=['POST'])
 @login_required
