@@ -4,6 +4,7 @@ from app import db
 from app.models import Cuenta, Transaccion, Cliente, Medico, Servicio, CuentaPorCobrar, CuentaPorPagar, Categoria, CentroCosto, PrestacionServicio, User, Venta, DetalleVenta, Paquete, PaqueteItem, CuotaVenta, BloqueoPeriodo
 from datetime import datetime, time
 import csv
+import traceback
 from io import StringIO
 
 bp = Blueprint('main', __name__)
@@ -46,12 +47,27 @@ def logout():
 def actualizar_db_urgente():
     if current_user.username.lower() == 'recepcion':
         return "No autorizado", 403
-    try:
-        db.session.execute(db.text('ALTER TABLE cliente ADD COLUMN fecha_nacimiento DATE;'))
-        db.session.commit()
-        return "¡Columna 'fecha_nacimiento' agregada exitosamente en la base de datos!"
-    except Exception as e:
-        return f"Aviso (es posible que la columna ya exista): {str(e)}"
+    comandos = [
+        "ALTER TABLE cliente ADD COLUMN fecha_nacimiento DATE;",
+        "ALTER TABLE cuenta ADD COLUMN color VARCHAR(20) DEFAULT '#17b978';",
+        "ALTER TABLE cuenta ADD COLUMN saldo_inicial FLOAT DEFAULT 0.0;",
+        "ALTER TABLE servicio ADD COLUMN costo_unitario FLOAT DEFAULT 0.0;",
+        "ALTER TABLE servicio ADD COLUMN profesional_asociado VARCHAR(100);",
+        "ALTER TABLE servicio ADD COLUMN reparto_adicional FLOAT DEFAULT 0.0;",
+        "ALTER TABLE servicio ADD COLUMN activo BOOLEAN DEFAULT 1;",
+        "ALTER TABLE transaccion ADD COLUMN observacion TEXT;",
+        "ALTER TABLE transaccion ADD COLUMN conciliado BOOLEAN DEFAULT 0;"
+    ]
+    resultados = []
+    for sql in comandos:
+        try:
+            db.session.execute(db.text(sql))
+            db.session.commit()
+            resultados.append(f"OK: {sql}")
+        except Exception as e:
+            db.session.rollback()
+            resultados.append(f"Ya existe / Omitido: {sql} ({str(e)})")
+    return "<br>".join(resultados)
 
 @bp.route('/')
 @login_required
@@ -79,7 +95,7 @@ def pyg():
     costo_total_servicios = sum((v.costo_servicios or 0) for v in ventas)
     
     cxp_fijos = CuentaPorPagar.query.all()
-    total_costos_fijos = sum(p.monto for p in cxp_fijos if p.concepto and 'fijo' in p.concepto.lower())
+    total_costos_fijos = sum((p.monto or 0) for p in cxp_fijos if p.concepto and 'fijo' in p.concepto.lower())
     
     total_egresos_costos = costo_total_servicios + total_costos_fijos
     utilidad_neta = total_ingresos_netos - total_egresos_costos
@@ -119,7 +135,7 @@ def pyg():
 
                     if es_match:
                         consultas_totales += (item.cantidad or 1)
-                        base_calculo = item.costo_total_item if (item.costo_total_item or 0) > 0 else (item.servicio.precio * (item.cantidad or 1))
+                        base_calculo = item.costo_total_item if (item.costo_total_item or 0) > 0 else ((item.servicio.precio if item.servicio else 0.0) * (item.cantidad or 1))
                         valor_total_medico += base_calculo * porc_medico
 
             if v.detalles:
@@ -152,88 +168,159 @@ def pyg():
 @bp.route('/finanzas')
 @login_required
 def dashboard():
-    if current_user.username.lower() == 'recepcion':
-        return redirect(url_for('main.ventas_vista'))
+    try:
+        if current_user.username.lower() == 'recepcion':
+            return redirect(url_for('main.ventas_vista'))
 
-    q = request.args.get('q', '')
-    cuenta_id = request.args.get('cuenta_id', type=int)
-    categoria_id = request.args.get('categoria_id', type=int)
-    centro_id = request.args.get('centro_costo_id', type=int)
-    fecha_desde_str = request.args.get('fecha_desde', '')
-    fecha_hasta_str = request.args.get('fecha_hasta', '')
+        q = request.args.get('q', '')
+        cuenta_id = request.args.get('cuenta_id', type=int)
+        categoria_id = request.args.get('categoria_id', type=int)
+        centro_id = request.args.get('centro_costo_id', type=int)
+        fecha_desde_str = request.args.get('fecha_desde', '')
+        fecha_hasta_str = request.args.get('fecha_hasta', '')
 
-    query = Transaccion.query
-    if q:
-        query = query.filter(Transaccion.descripcion.ilike(f'%{q}%'))
-    if cuenta_id:
-        query = query.filter_by(cuenta_id=cuenta_id)
-    if categoria_id:
-        query = query.filter_by(categoria_id=categoria_id)
-    if centro_id:
-        query = query.filter_by(centro_costo_id=centro_id)
-    
-    if fecha_desde_str:
-        dt_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
-        query = query.filter(Transaccion.fecha >= dt_desde)
-    if fecha_hasta_str:
-        dt_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d')
-        dt_hasta_fin = datetime.combine(dt_hasta.date(), time.max)
-        query = query.filter(Transaccion.fecha <= dt_hasta_fin)
+        query = Transaccion.query
+        if q:
+            query = query.filter(Transaccion.descripcion.ilike(f'%{q}%'))
+        if cuenta_id:
+            query = query.filter_by(cuenta_id=cuenta_id)
+        if categoria_id:
+            query = query.filter_by(categoria_id=categoria_id)
+        if centro_id:
+            query = query.filter_by(centro_costo_id=centro_id)
+        
+        if fecha_desde_str:
+            dt_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
+            query = query.filter(Transaccion.fecha >= dt_desde)
+        if fecha_hasta_str:
+            dt_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d')
+            dt_hasta_fin = datetime.combine(dt_hasta.date(), time.max)
+            query = query.filter(Transaccion.fecha <= dt_hasta_fin)
 
-    transacciones = query.order_by(Transaccion.fecha.desc(), Transaccion.id.desc()).all()
+        transacciones = query.order_by(Transaccion.fecha.desc(), Transaccion.id.desc()).all()
 
-    cuentas = Cuenta.query.all()
-    saldos = {'PYG': 0.0, 'USD': 0.0, 'BRL': 0.0}
-    
-    for c in cuentas:
-        saldo_cta = c.saldo_inicial if (c and c.saldo_inicial is not None) else 0.0
-        txs_cta = Transaccion.query.filter_by(cuenta_id=c.id).all() if c else []
-        for t in txs_cta:
-            if t.tipo == 'Ingreso':
-                saldo_cta += (t.monto or 0.0)
+        cuentas = Cuenta.query.all()
+        saldos = {'PYG': 0.0, 'USD': 0.0, 'BRL': 0.0}
+        
+        for c in cuentas:
+            saldo_cta = c.saldo_inicial if (c and c.saldo_inicial is not None) else 0.0
+            txs_cta = Transaccion.query.filter_by(cuenta_id=c.id).all() if c else []
+            for t in txs_cta:
+                if t.tipo == 'Ingreso':
+                    saldo_cta += (t.monto or 0.0)
+                else:
+                    saldo_cta -= (t.monto or 0.0)
+            moneda_cta = c.moneda if (c and c.moneda in saldos) else 'PYG'
+            saldos[moneda_cta] += saldo_cta
+
+        saldos_acumulados = {}
+        for c in cuentas:
+            if c:
+                saldos_acumulados[c.id] = c.saldo_inicial if c.saldo_inicial is not None else 0.0
+
+        txs_cronologicas = Transaccion.query.order_by(Transaccion.fecha.asc(), Transaccion.id.asc()).all()
+        for t in txs_cronologicas:
+            if t.cuenta_id in saldos_acumulados:
+                if t.tipo == 'Ingreso':
+                    saldos_acumulados[t.cuenta_id] += (t.monto or 0.0)
+                else:
+                    saldos_acumulados[t.cuenta_id] -= (t.monto or 0.0)
+                t.saldo_resultante = saldos_acumulados[t.cuenta_id]
             else:
-                saldo_cta -= (t.monto or 0.0)
-        moneda_cta = c.moneda if (c and c.moneda in saldos) else 'PYG'
-        saldos[moneda_cta] += saldo_cta
+                t.saldo_resultante = 0.0
 
-    saldos_acumulados = {}
-    for c in cuentas:
-        if c:
-            saldos_acumulados[c.id] = c.saldo_inicial if c.saldo_inicial is not None else 0.0
+        categorias = Categoria.query.all()
+        centros_costo = CentroCosto.query.all()
+        servicios = Servicio.query.all()
+        clientes = Cliente.query.all()
+        bloqueos_activos = BloqueoPeriodo.query.filter_by(estado='Bloqueado').all()
 
-    txs_cronologicas = Transaccion.query.order_by(Transaccion.fecha.asc(), Transaccion.id.asc()).all()
-    for t in txs_cronologicas:
-        if t.cuenta_id in saldos_acumulados:
-            if t.tipo == 'Ingreso':
-                saldos_acumulados[t.cuenta_id] += (t.monto or 0.0)
-            else:
-                saldos_acumulados[t.cuenta_id] -= (t.monto or 0.0)
-            t.saldo_resultante = saldos_acumulados[t.cuenta_id]
-        else:
-            t.saldo_resultante = 0.0
+        return render_template('dashboard.html', 
+                               transacciones=transacciones, 
+                               cuentas=cuentas, 
+                               categorias=categorias, 
+                               centros_costo=centros_costo,
+                               servicios=servicios,
+                               clientes=clientes,
+                               saldos=saldos,
+                               bloqueos_activos=bloqueos_activos,
+                               selected_q=q,
+                               selected_cuenta=cuenta_id,
+                               selected_categoria=categoria_id,
+                               selected_centro=centro_id,
+                               selected_desde=fecha_desde_str,
+                               selected_hasta=fecha_hasta_str)
+    except Exception:
+        return f"<div style='padding:25px;font-family:monospace;background:#fff0f0;color:#b00020;border:2px solid #b00020;margin:20px;border-radius:8px;'><h3>Diagnóstico de Error en /finanzas:</h3><pre>{traceback.format_exc()}</pre></div>", 200
 
-    categorias = Categoria.query.all()
-    centros_costo = CentroCosto.query.all()
-    servicios = Servicio.query.all()
-    clientes = Cliente.query.all()
-    
-    bloqueos_activos = BloqueoPeriodo.query.filter_by(estado='Bloqueado').all()
+@bp.route('/transferir-cuentas', methods=['POST'])
+@bp.route('/transferir', methods=['POST'])
+@login_required
+def transferir_cuentas():
+    cuenta_origen_id = request.form.get('cuenta_origen_id', type=int)
+    cuenta_destino_id = request.form.get('cuenta_destino_id', type=int)
+    monto_salida = limpiar_monto(request.form.get('monto_salida') or request.form.get('monto') or 0)
+    cotizacion = limpiar_monto(request.form.get('cotizacion') or 1)
+    monto_entrada = limpiar_monto(request.form.get('monto_entrada') or 0)
+    fecha_str = request.form.get('fecha')
+    fecha_tx = datetime.strptime(fecha_str, '%Y-%m-%d') if fecha_str else datetime.utcnow()
 
-    return render_template('dashboard.html', 
-                           transacciones=transacciones, 
-                           cuentas=cuentas, 
-                           categorias=categorias, 
-                           centros_costo=centros_costo,
-                           servicios=servicios,
-                           clientes=clientes,
-                           saldos=saldos,
-                           bloqueos_activos=bloqueos_activos,
-                           selected_q=q,
-                           selected_cuenta=cuenta_id,
-                           selected_categoria=categoria_id,
-                           selected_centro=centro_id,
-                           selected_desde=fecha_desde_str,
-                           selected_hasta=fecha_hasta_str)
+    if cuenta_origen_id and cuenta_destino_id and cuenta_origen_id != cuenta_destino_id and monto_salida > 0:
+        cta_origen = Cuenta.query.get(cuenta_origen_id)
+        cta_destino = Cuenta.query.get(cuenta_destino_id)
+        if cta_origen and cta_destino:
+            if monto_entrada <= 0:
+                if cta_origen.moneda == cta_destino.moneda:
+                    monto_entrada = monto_salida
+                else:
+                    monto_entrada = monto_salida * cotizacion
+
+            db.session.add(Transaccion(
+                descripcion=f"Transferencia saliente a {cta_destino.nombre}",
+                tipo='Salida',
+                monto=monto_salida,
+                cuenta_id=cta_origen.id,
+                metodo_pago='Transferencia',
+                conciliado=False,
+                fecha=fecha_tx,
+                observacion=f"Cambio: {cotizacion}"
+            ))
+            db.session.add(Transaccion(
+                descripcion=f"Transferencia entrante de {cta_origen.nombre}",
+                tipo='Ingreso',
+                monto=monto_entrada,
+                cuenta_id=cta_destino.id,
+                metodo_pago='Transferencia',
+                conciliado=False,
+                fecha=fecha_tx,
+                observacion=f"Cambio: {cotizacion}"
+            ))
+            db.session.commit()
+            flash('Transferencia realizada correctamente.', 'success')
+    else:
+        flash('Verifique las cuentas y el monto a transferir.', 'danger')
+    return redirect(url_for('main.dashboard'))
+
+@bp.route('/descargar-plantilla')
+@login_required
+def descargar_plantilla():
+    si = StringIO()
+    cw = csv.writer(si, delimiter=';')
+    cw.writerow(['Fecha', 'Tipo', 'Descripcion', 'Paciente_Proveedor', 'Categoria', 'Cuenta', 'Centro_Costo', 'Metodo', 'Monto', 'Cotizacion'])
+    cw.writerow(['04/11/2026', 'Ingreso', 'Consulta particular', 'Maria Gimenez', 'Consultas Médicas', 'Caja Guaranies', 'ADMINISTRATIVO', 'Efectivo', '350000', '1'])
+    output = si.getvalue().encode('utf-8-sig')
+    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=plantilla_transacciones.csv"})
+
+@bp.route('/importar-transacciones', methods=['POST'])
+@login_required
+def importar_transacciones():
+    flash('Función de importación lista.', 'info')
+    return redirect(url_for('main.dashboard'))
+
+@bp.route('/exportar-pdf')
+@login_required
+def exportar_pdf():
+    return redirect(url_for('main.exportar_excel'))
 
 @bp.route('/bloqueos')
 @login_required
@@ -247,7 +334,9 @@ def bloqueos_vista():
 @bp.route('/bloquear-periodo', methods=['POST'])
 @login_required
 def bloquear_periodo():
-    periodo = request.form.get('periodo', 'Noviembre 2026')
+    desde = request.form.get('fecha_desde', '')
+    hasta = request.form.get('fecha_hasta', '')
+    periodo = request.form.get('periodo') or (f"{desde} a {hasta}" if desde and hasta else 'Noviembre 2026')
     cuenta_id = request.form.get('cuenta_id')
     cta_val = int(cuenta_id) if cuenta_id and cuenta_id != 'todas' else None
     
@@ -526,10 +615,13 @@ def registrar_cobro_avanzado():
     equivalente_gs = monto_recibido * cotizacion
 
     if equivalente_gs > 0 and cuenta_id:
+        cta = Cuenta.query.get(cuenta_id)
+        monto_tx = monto_recibido if (cta and cta.moneda != 'PYG') else equivalente_gs
+
         db.session.add(Transaccion(
             descripcion=f"Cobro avanzado: {cxc.concepto}",
             tipo='Ingreso',
-            monto=equivalente_gs,
+            monto=monto_tx,
             cuenta_id=cuenta_id,
             cliente_id=cxc.cliente_id,
             metodo_pago=forma_cobro,
@@ -546,25 +638,29 @@ def registrar_cobro_avanzado():
 @bp.route('/cadastros')
 @login_required
 def cadastros():
-    cuentas = Cuenta.query.all()
-    clientes = Cliente.query.all()
-    medicos = Medico.query.all()
-    servicios = Servicio.query.all()
-    paquetes = Paquete.query.all()
-    cxc_list = CuentaPorCobrar.query.all()
-    cxp_list = CuentaPorPagar.query.all()
-    categorias = Categoria.query.all()
-    centros_costo = CentroCosto.query.all()
-    return render_template('cadastros.html', 
-                           cuentas=cuentas, 
-                           clientes=clientes, 
-                           medicos=medicos, 
-                           servicios=servicios,
-                           paquetes=paquetes,
-                           cxc_list=cxc_list,
-                           cxp_list=cxp_list,
-                           categorias=categorias,
-                           centros_costo=centros_costo)
+    try:
+        cuentas = Cuenta.query.all()
+        clientes = Cliente.query.all()
+        medicos = Medico.query.all()
+        servicios = Servicio.query.all()
+        paquetes = Paquete.query.all()
+        cxc_list = CuentaPorCobrar.query.all()
+        cxp_list = CuentaPorPagar.query.all()
+        categorias = Categoria.query.all()
+        centros_costo = CentroCosto.query.all()
+        
+        return render_template('cadastros.html', 
+                               cuentas=cuentas, 
+                               clientes=clientes, 
+                               medicos=medicos, 
+                               servicios=servicios,
+                               paquetes=paquetes,
+                               cxc_list=cxc_list,
+                               cxp_list=cxp_list,
+                               categorias=categorias,
+                               centros_costo=centros_costo)
+    except Exception:
+        return f"<div style='padding:25px;font-family:monospace;background:#fff0f0;color:#b00020;border:2px solid #b00020;margin:20px;border-radius:8px;'><h3>Diagnóstico de Error en /cadastros:</h3><pre>{traceback.format_exc()}</pre></div>", 200
 
 @bp.route('/agregar-categoria', methods=['POST'])
 @login_required
@@ -593,6 +689,22 @@ def editar_categoria(id):
     flash('Categoría actualizada correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
+@bp.route('/eliminar-categoria/<int:id>', methods=['POST'])
+@login_required
+def eliminar_categoria(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
+    cat = Categoria.query.get_or_404(id)
+    en_uso = Transaccion.query.filter_by(categoria_id=id).first()
+    if en_uso:
+        flash('No se puede eliminar la categoría porque tiene transacciones asociadas.', 'danger')
+    else:
+        db.session.delete(cat)
+        db.session.commit()
+        flash('Categoría eliminada correctamente.', 'success')
+    return redirect(url_for('main.cadastros'))
+
 @bp.route('/agregar-centro-costo', methods=['POST'])
 @login_required
 def agregar_centro_costo():
@@ -616,6 +728,22 @@ def editar_centro_costo(id):
     cc.nombre = request.form.get('nombre')
     db.session.commit()
     flash('Centro de costo actualizado correctamente.', 'success')
+    return redirect(url_for('main.cadastros'))
+
+@bp.route('/eliminar-centro-costo/<int:id>', methods=['POST'])
+@login_required
+def eliminar_centro_costo(id):
+    if current_user.username.lower() == 'recepcion':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('main.cadastros'))
+    cc = CentroCosto.query.get_or_404(id)
+    en_uso = Transaccion.query.filter_by(centro_costo_id=id).first()
+    if en_uso:
+        flash('No se puede eliminar el centro de costo porque tiene movimientos asociados.', 'danger')
+    else:
+        db.session.delete(cc)
+        db.session.commit()
+        flash('Centro de costo eliminado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
 
 @bp.route('/agregar-paquete', methods=['POST'])
@@ -809,7 +937,7 @@ def honorarios():
                     esp = (m.especialidad or '').strip().lower()
                     if (esp and (esp in nombre_srv or nombre_srv in esp)) or ('nutricion' in esp and 'nutricionista' in nombre_srv):
                         porc_med = (m.porcentaje_medico or 70.0) / 100.0
-                        val_total = item.costo_total_item if (item.costo_total_item or 0) > 0 else (item.servicio.precio * (item.cantidad or 1))
+                        val_total = item.costo_total_item if (item.costo_total_item or 0) > 0 else ((item.servicio.precio if item.servicio else 0.0) * (item.cantidad or 1))
                         prestaciones_virtuales.append({
                             'fecha': v.fecha,
                             'medico': m,
@@ -874,11 +1002,11 @@ def flujo_proyectado():
         return redirect(url_for('main.ventas_vista'))
     cxc_pendientes = CuentaPorCobrar.query.filter_by(estado='Pendiente').all()
     cxp_pendientes = CuentaPorPagar.query.filter_by(estado='Pendiente').all()
-    total_cxc = sum(x.monto for x in cxc_pendientes)
-    total_cxp = sum(p.monto for p in cxp_pendientes)
+    total_cxc = sum((x.monto or 0) for x in cxc_pendientes)
+    total_cxp = sum((p.monto or 0) for p in cxp_pendientes)
     
     ventas_activas = Venta.query.filter(Venta.estado != 'Cancelada').all()
-    distribucion_costos = sum((v.costo_servicios * 0.25) for v in ventas_activas)
+    distribucion_costos = sum(((v.costo_servicios or 0) * 0.25) for v in ventas_activas)
     saldo_proyectado = total_cxc - (total_cxp + distribucion_costos)
     
     return render_template('flujo_proyectado.html', 
@@ -978,6 +1106,8 @@ def editar_cuenta(id):
     c = Cuenta.query.get_or_404(id)
     c.nombre = request.form.get('nombre')
     c.tipo_cuenta = request.form.get('tipo_cuenta')
+    if request.form.get('saldo_inicial') is not None:
+        c.saldo_inicial = limpiar_monto(request.form.get('saldo_inicial'))
     if not c.transacciones:
         c.moneda = request.form.get('moneda', c.moneda)
     db.session.commit()
