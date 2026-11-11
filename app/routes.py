@@ -186,19 +186,20 @@ def dashboard():
     saldos = {'PYG': 0.0, 'USD': 0.0, 'BRL': 0.0}
     
     for c in cuentas:
-        saldo_cta = c.saldo_inicial if c.saldo_inicial is not None else 0.0
-        txs_cta = Transaccion.query.filter_by(cuenta_id=c.id).all()
+        saldo_cta = c.saldo_inicial if (c and c.saldo_inicial is not None) else 0.0
+        txs_cta = Transaccion.query.filter_by(cuenta_id=c.id).all() if c else []
         for t in txs_cta:
             if t.tipo == 'Ingreso':
                 saldo_cta += (t.monto or 0.0)
             else:
                 saldo_cta -= (t.monto or 0.0)
-        moneda_cta = c.moneda if c.moneda in saldos else 'PYG'
+        moneda_cta = c.moneda if (c and c.moneda in saldos) else 'PYG'
         saldos[moneda_cta] += saldo_cta
 
     saldos_acumulados = {}
     for c in cuentas:
-        saldos_acumulados[c.id] = c.saldo_inicial if c.saldo_inicial is not None else 0.0
+        if c:
+            saldos_acumulados[c.id] = c.saldo_inicial if c.saldo_inicial is not None else 0.0
 
     txs_cronologicas = Transaccion.query.order_by(Transaccion.fecha.asc(), Transaccion.id.asc()).all()
     for t in txs_cronologicas:
@@ -545,25 +546,30 @@ def registrar_cobro_avanzado():
 @bp.route('/cadastros')
 @login_required
 def cadastros():
-    cuentas = Cuenta.query.all()
-    clientes = Cliente.query.all()
-    medicos = Medico.query.all()
-    servicios = Servicio.query.all()
-    paquetes = Paquete.query.all()
-    cxc_list = CuentaPorCobrar.query.all()
-    cxp_list = CuentaPorPagar.query.all()
-    categorias = Categoria.query.all()
-    centros_costo = CentroCosto.query.all()
-    return render_template('cadastros.html', 
-                           cuentas=cuentas, 
-                           clientes=clientes, 
-                           medicos=medicos, 
-                           servicios=servicios,
-                           paquetes=paquetes,
-                           cxc_list=cxc_list,
-                           cxp_list=cxp_list,
-                           categorias=categorias,
-                           centros_costo=centros_costo)
+    try:
+        cuentas = Cuenta.query.all()
+        clientes = Cliente.query.all()
+        medicos = Medico.query.all()
+        servicios = Servicio.query.all()
+        paquetes = Paquete.query.all()
+        cxc_list = CuentaPorCobrar.query.all()
+        cxp_list = CuentaPorPagar.query.all()
+        categorias = Categoria.query.all()
+        centros_costo = CentroCosto.query.all()
+        
+        return render_template('cadastros.html', 
+                               cuentas=cuentas, 
+                               clientes=clientes, 
+                               medicos=medicos, 
+                               servicios=servicios,
+                               paquetes=paquetes,
+                               cxc_list=cxc_list,
+                               cxp_list=cxp_list,
+                               categorias=categorias,
+                               centros_costo=centros_costo)
+    except Exception as e:
+        flash(f"Error interno al cargar los registros: {str(e)}", "danger")
+        return redirect(url_for('main.dashboard'))
 
 @bp.route('/agregar-categoria', methods=['POST'])
 @login_required
