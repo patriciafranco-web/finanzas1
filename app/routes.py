@@ -186,26 +186,27 @@ def dashboard():
     saldos = {'PYG': 0.0, 'USD': 0.0, 'BRL': 0.0}
     
     for c in cuentas:
-        saldo_cta = c.saldo_inicial
+        saldo_cta = c.saldo_inicial if c.saldo_inicial is not None else 0.0
         txs_cta = Transaccion.query.filter_by(cuenta_id=c.id).all()
         for t in txs_cta:
             if t.tipo == 'Ingreso':
-                saldo_cta += t.monto
+                saldo_cta += (t.monto or 0.0)
             else:
-                saldo_cta -= t.monto
-        saldos[c.moneda] += saldo_cta
+                saldo_cta -= (t.monto or 0.0)
+        moneda_cta = c.moneda if c.moneda in saldos else 'PYG'
+        saldos[moneda_cta] += saldo_cta
 
     saldos_acumulados = {}
     for c in cuentas:
-        saldos_acumulados[c.id] = c.saldo_inicial
+        saldos_acumulados[c.id] = c.saldo_inicial if c.saldo_inicial is not None else 0.0
 
     txs_cronologicas = Transaccion.query.order_by(Transaccion.fecha.asc(), Transaccion.id.asc()).all()
     for t in txs_cronologicas:
         if t.cuenta_id in saldos_acumulados:
             if t.tipo == 'Ingreso':
-                saldos_acumulados[t.cuenta_id] += t.monto
+                saldos_acumulados[t.cuenta_id] += (t.monto or 0.0)
             else:
-                saldos_acumulados[t.cuenta_id] -= t.monto
+                saldos_acumulados[t.cuenta_id] -= (t.monto or 0.0)
             t.saldo_resultante = saldos_acumulados[t.cuenta_id]
         else:
             t.saldo_resultante = 0.0
