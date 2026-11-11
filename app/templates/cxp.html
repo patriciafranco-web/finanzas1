@@ -28,7 +28,7 @@
                     <td class="fw-bold">{{ p.proveedor }}</td>
                     <td>{{ p.concepto }}</td>
                     <td><span class="badge bg-secondary">{{ p.categoria.nombre if p.categoria else 'Sin Categoría' }}</span></td>
-                    <td class="fw-bold text-danger">{% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.0f}".format(p.monto).replace(',', '.') }}</td>
+                    <td class="fw-bold text-danger">₲ {{ "{:,.0f}".format(p.monto).replace(',', '.') }}</td>
                     <td>{{ p.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
                     <td>
                         {% if p.estado == 'Pagado' %}
@@ -57,7 +57,7 @@
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <div class="modal-body">
-                                    <p>Monto: <strong class="text-danger">{% if p.moneda == 'PYG' %}₲ {% elif p.moneda == 'USD' %}$ {% else %}R$ {% endif %}{{ "{:,.0f}".format(p.monto).replace(',', '.') }}</strong></p>
+                                    <p>Monto: <strong class="text-danger">₲ {{ "{:,.0f}".format(p.monto).replace(',', '.') }}</strong></p>
                                     <div class="mb-3">
                                         <label class="form-label">Seleccionar Cuenta de Egreso (Banco/Caja)</label>
                                         <select class="form-select" name="cuenta_id" required>
@@ -82,7 +82,7 @@
     </div>
 </div>
 
-<!-- Modal Nueva Cuenta a Pagar (Con Categorías y Anexos según referencia) -->
+<!-- Modal Nueva Cuenta a Pagar -->
 <div class="modal fade" id="modalCxP" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -95,11 +95,11 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Proveedor *</label>
-                            <input type="text" class="form-control" name="proveedor" required placeholder="Ej: MEDSYS">
+                            <input type="text" class="form-control" name="proveedor" required placeholder="Ej: Laboratorio Central">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Concepto *</label>
-                            <input type="text" class="form-control" name="concepto" required placeholder="Ej: Insumos médicos">
+                            <input type="text" class="form-control" name="concepto" required placeholder="Ej: Insumos PRP">
                         </div>
                     </div>
 
