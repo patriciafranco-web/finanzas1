@@ -10,8 +10,8 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'clinica_finanzas_secret_key_2026'
+    app.config['PROPAGATE_EXCEPTIONS'] = True
     
-    # --- CONFIGURACIÓN DE DISCO PERSISTENTE (RENDER / LOCAL) ---
     if os.path.exists('/var/data'):
         basedir = '/var/data'
     else:
@@ -20,8 +20,6 @@ def create_app():
 
     db_path = os.path.join(basedir, 'clinica_finanzas.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
-    # ----------------------------------------------------------
-
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     db.init_app(app)
@@ -41,44 +39,48 @@ def create_app():
     from app.routes import bp
     app.register_blueprint(bp)
 
-    # Verificar si la base de datos necesita actualización de esquema para el módulo avanzado
-    if os.path.exists(db_path):
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(servicio);")
-            columns = [col[1] for col in cursor.fetchall()]
-            conn.close()
-            # Si la tabla existe pero le falta la columna 'costo_unitario', recreamos la BD limpiamente para soportar la nueva estructura
-            if columns and 'costo_unitario' not in columns:
-                os.remove(db_path)
-        except Exception:
-            pass
-
     with app.app_context():
         db.create_all()
         
-        # Crear usuario administrador por defecto si no existe
+        # Migración automática de columnas en el disco persistente /var/data
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            migraciones = [
+                "ALTER TABLE cliente ADD COLUMN fecha_nacimiento DATE;",
+                "ALTER TABLE cuenta ADD COLUMN color VARCHAR(20) DEFAULT '#17b978';",
+                "ALTER TABLE cuenta ADD COLUMN saldo_inicial FLOAT DEFAULT 0.0;",
+                "ALTER TABLE servicio ADD COLUMN costo_unitario FLOAT DEFAULT 0.0;",
+                "ALTER TABLE servicio ADD COLUMN profesional_asociado VARCHAR(100);",
+                "ALTER TABLE servicio ADD COLUMN reparto_adicional FLOAT DEFAULT 0.0;",
+                "ALTER TABLE servicio ADD COLUMN activo BOOLEAN DEFAULT 1;",
+                "ALTER TABLE transaccion ADD COLUMN observacion TEXT;",
+                "ALTER TABLE transaccion ADD COLUMN conciliado BOOLEAN DEFAULT 0;"
+            ]
+            for sql in migraciones:
+                try:
+                    cursor.execute(sql)
+                except Exception:
+                    pass
+            conn.commit()
+            conn.close()
+
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', rol='Gerente Financiera')
             admin.set_password('clinica2026')
             db.session.add(admin)
 
-        # --- CREAR USUARIO DE RECEPCIÓN AUTOMÁTICAMENTE ---
         if not User.query.filter_by(username='recepcion').first():
             recep = User(username='recepcion')
             recep.set_password('123456')
             db.session.add(recep)
-        # --------------------------------------------------
             
-        # Crear categorías básicas si la tabla está vacía
         if not Categoria.query.first():
             db.session.add(Categoria(nombre='Consultas Médicas', tipo='Ingreso'))
             db.session.add(Categoria(nombre='Venta de Paquetes', tipo='Ingreso'))
             db.session.add(Categoria(nombre='Insumos y Farmacia', tipo='Salida'))
             db.session.add(Categoria(nombre='Honorarios Médicos', tipo='Salida'))
 
-        # Crear un servicio de prueba si no existe
         if not Servicio.query.first():
             db.session.add(Servicio(codigo='SRV01', nombre='Consulta General', descripcion='Consulta médica general', moneda='PYG', precio=150000, costo_unitario=100000, activo=True))
             
