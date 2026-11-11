@@ -32,13 +32,10 @@
 </div>
 {% endif %}
 
-<!-- Pestañas de Navegación Estilo PDF -->
+<!-- Pestaña Única de Transacciones (Sin Cadastros arriba) -->
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
         <a class="nav-link active fw-bold" href="{{ url_for('main.dashboard') }}">Transacciones</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link text-muted" href="{{ url_for('main.cadastros') }}">Cadastros & Cuentas</a>
     </li>
 </ul>
 
@@ -275,7 +272,6 @@
 </div>
 
 <script>
-// Formateador global automático con puntos de miles
 function formatearConPuntos(input) {
     let valorLimpio = input.value.replace(/\D/g, '');
     if (valorLimpio === '') {
@@ -285,7 +281,6 @@ function formatearConPuntos(input) {
     let numero = parseInt(valorLimpio, 10);
     input.value = numero.toLocaleString('es-PY');
 
-    // Mapeo dinámico a inputs ocultos reales
     if(input.id === 'inputMontoTransaccionVisual') {
         document.getElementById('inputMontoTransaccionReal').value = numero;
     } else if(input.id === 'inputMontoTransfVisual') {
