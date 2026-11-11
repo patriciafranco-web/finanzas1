@@ -41,77 +41,87 @@
     </div>
 </div>
 
-<!-- 1. TABLA PRINCIPAL LIMPIA (SIN MODALES ADENTRO) -->
+<!-- TABLA PRINCIPAL DE 12 COLUMNAS -->
 <div class="card shadow-sm">
     <div class="card-body p-0">
-        <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Fecha</th>
-                    <th>Cliente / Paciente</th>
-                    <th>Plan / Paquete</th>
-                    <th>Total (IVA Incl.)</th>
-                    <th>Pagado</th>
-                    <th>Saldo Pendiente</th>
-                    <th>Margen / Ganancia</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for v in ventas %}
-                <tr>
-                    <td>{{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '-' }}</td>
-                    <td class="fw-bold">{{ v.cliente.nombre if v.cliente else 'Particular' }}</td>
-                    <td><span class="badge bg-info text-dark">{{ v.paquete.nombre if v.paquete else 'Venta General / Avulso' }}</span></td>
-                    <td class="fw-bold">₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</td>
-                    <td class="text-success fw-bold">₲ {{ "{:,.0f}".format(v.pagado or 0).replace(',', '.') }}</td>
-                    <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(v.saldo or 0).replace(',', '.') }}</td>
-                    <td class="text-primary fw-bold">₲ {{ "{:,.0f}".format(v.ganancia_plan or 0).replace(',', '.') }}</td>
-                    <td>
-                        {% if v.estado == 'Pagada' %}<span class="badge bg-success">Pagada</span>
-                        {% elif v.estado == 'Parcial' %}<span class="badge bg-info text-dark">Parcial</span>
-                        {% elif v.estado == 'Cancelada' %}<span class="badge bg-secondary">Cancelada</span>
-                        {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
-                    </td>
-                    <td>
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                Acciones
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><button class="dropdown-item text-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalDetallesVenta{{ v.id }}"><i class="fa-solid fa-eye me-1"></i> Ver detalles</button></li>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Cliente / Paciente</th>
+                        <th>Plan</th>
+                        <th>Cuotas</th>
+                        <th>Total</th>
+                        <th>Costo</th>
+                        <th>Pagado</th>
+                        <th>Saldo</th>
+                        <th>Margen</th>
+                        <th>Estado</th>
+                        <th>Forma de pago</th>
+                        <th>Cuenta</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in ventas %}
+                    <tr>
+                        <td>{{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '-' }}</td>
+                        <td class="fw-bold">{{ v.cliente.nombre if v.cliente else 'Particular' }}</td>
+                        <td><span class="badge bg-info text-dark">{{ v.paquete.nombre if v.paquete else 'Venta General' }}</span></td>
+                        <td>{{ v.cuotas_progreso | default('1/1') }}</td>
+                        <td class="fw-bold">₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</td>
+                        <td>₲ {{ "{:,.0f}".format(v.costo_servicios or 0).replace(',', '.') }}</td>
+                        <td class="text-success fw-bold">₲ {{ "{:,.0f}".format(v.pagado or 0).replace(',', '.') }}</td>
+                        <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(v.saldo or 0).replace(',', '.') }}</td>
+                        <td class="text-primary fw-bold">₲ {{ "{:,.0f}".format(v.ganancia_plan or 0).replace(',', '.') }}</td>
+                        <td>
+                            {% if v.estado == 'Pagada' %}<span class="badge bg-success">Pagada</span>
+                            {% elif v.estado == 'Parcial' %}<span class="badge bg-info text-dark">Parcial</span>
+                            {% elif v.estado == 'Cancelada' %}<span class="badge bg-secondary">Cancelada</span>
+                            {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
+                        </td>
+                        <td>{{ v.forma_pago | default('Cuotas (CxC)') }}</td>
+                        <td>{{ v.cuenta_nombre | default('-') }}</td>
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    Acciones
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><button class="dropdown-item text-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalDetallesVenta{{ v.id }}"><i class="fa-solid fa-eye me-1"></i> Ver detalles</button></li>
+                                    
+                                    {% if v.estado != 'Pagada' and v.estado != 'Cancelada' %}
+                                    <li><a class="dropdown-item text-success" href="{{ url_for('main.cxc_vista') }}"><i class="fa-solid fa-cash-register me-1"></i> Cobrar cuota</a></li>
+                                    {% endif %}
+                                    
+                                    {% if v.estado != 'Cancelada' %}
+                                    <li>
+                                        <form action="{{ url_for('main.cancelar_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Desea cancelar esta venta y anular sus cuotas pendientes?');">
+                                            <button type="submit" class="dropdown-item text-warning"><i class="fa-solid fa-ban me-1"></i> Cancelar venta</button>
+                                        </form>
+                                    </li>
+                                    {% endif %}
 
-                                {% if v.estado != 'Pagada' and v.estado != 'Cancelada' %}
-                                <li><a class="dropdown-item text-success" href="{{ url_for('main.cxc_vista') }}"><i class="fa-solid fa-cash-register me-1"></i> Cobrar cuota</a></li>
-                                {% endif %}
-                                
-                                {% if v.estado != 'Cancelada' %}
-                                <li>
-                                    <form action="{{ url_for('main.cancelar_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Desea cancelar esta venta y anular sus cuotas pendientes?');">
-                                        <button type="submit" class="dropdown-item text-warning"><i class="fa-solid fa-ban me-1"></i> Cancelar venta</button>
-                                    </form>
-                                </li>
-                                {% endif %}
-
-                                <li>
-                                    <form action="{{ url_for('main.excluir_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea excluir esta venta? Esta acción no se puede deshacer.');">
-                                        <button type="submit" class="dropdown-item text-danger"><i class="fa-solid fa-trash me-1"></i> Excluir</button>
-                                    </form>
-                                </li>
-                            </ul>
-                        </div>
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="9" class="text-center py-4 text-muted">No hay ventas registradas.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                                    <li>
+                                        <form action="{{ url_for('main.excluir_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea excluir esta venta? Esta acción no se puede deshacer.');">
+                                            <button type="submit" class="dropdown-item text-danger"><i class="fa-solid fa-trash me-1"></i> Excluir</button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="13" class="text-center py-4 text-muted">No hay ventas registradas.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<!-- 2. MODALES DE DETALLES (FUERA DE LA TABLA PARA NO ROMPER EL HTML) -->
+<!-- MODALES DE DETALLES -->
 {% for v in ventas %}
 <div class="modal fade" id="modalDetallesVenta{{ v.id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -142,38 +152,11 @@
                     <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Tarifa de tarjeta:</span> <strong>₲ {{ "{:,.0f}".format(v.tarifa_pasarela or 0).replace(',', '.') }}</strong></div>
                     <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Costo de servicios:</span> <strong>₲ {{ "{:,.0f}".format(v.costo_servicios or 0).replace(',', '.') }}</strong></div>
                     <hr class="my-2">
-                    <div class="d-flex justify-content-between mb-1 fw-bold"><span>Margen de contribución:</span> <span class="text-primary">₲ {{ "{:,.0f}".format(v.margen_contribucion or 0).replace(',', '.') }}</span></div>
-                    <div class="d-flex justify-content-between mb-1 text-danger small"><span>(-) Costo fijo por plan:</span> <strong>₲ {{ "{:,.0f}".format(v.costo_fijo_plan or 0).replace(',', '.') }}</strong></div>
-                    <hr class="my-2">
                     <div class="d-flex justify-content-between fw-bold text-success fs-5">
                         <span>Ganancia neta del plan:</span>
                         <span>₲ {{ "{:,.0f}".format(v.ganancia_plan or 0).replace(',', '.') }}</span>
                     </div>
                 </div>
-
-                {% if v.detalles %}
-                <h6 class="fw-bold text-secondary mb-2">Servicios Avulsos / Extras incluidos</h6>
-                <table class="table table-sm table-bordered mb-3">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Servicio</th>
-                            <th>Cantidad</th>
-                            <th>Precio Unitario</th>
-                            <th>Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for det in v.detalles %}
-                        <tr>
-                            <td>{{ det.servicio.nombre if det.servicio else '-' }}</td>
-                            <td>{{ det.cantidad }}</td>
-                            <td>₲ {{ "{:,.0f}".format(det.precio_unitario or 0).replace(',', '.') }}</td>
-                            <td class="fw-bold">₲ {{ "{:,.0f}".format(det.subtotal or 0).replace(',', '.') }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% endif %}
 
                 <h6 class="fw-bold text-secondary mb-2">Cronograma de Cuotas Generadas</h6>
                 <div class="card border shadow-sm bg-white mb-0">
@@ -217,7 +200,7 @@
 </div>
 {% endfor %}
 
-<!-- Modal Nueva Venta -->
+<!-- Modal Nueva Venta (Sin Cuenta de Ingreso ni Costo Fijo) -->
 <div class="modal fade" id="modalVenta" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -228,7 +211,6 @@
                 </div>
                 <div class="modal-body">
                     <div class="row">
-                        <!-- Columna Izquierda: Formulario de Venta -->
                         <div class="col-md-7">
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Cliente / Paciente</label>
@@ -254,7 +236,6 @@
 
                             <hr class="my-3">
 
-                            <!-- Sección de Servicios Avulsos / Extras -->
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <label class="form-label fw-bold mb-0 text-primary">Servicios Avulsos / Extras (Opcional)</label>
                                 <button type="button" class="btn btn-sm btn-outline-success" onclick="agregarServicioAvulso()">
@@ -291,7 +272,6 @@
                                         <option value="Crédito (local/extranjera)">Crédito (local / extranjera)</option>
                                         <option value="Débito">Débito</option>
                                         <option value="PIX">PIX</option>
-                                        <option value="Débito QR">Débito QR</option>
                                     </select>
                                 </div>
                                 <div class="col-md-3 mb-3">
@@ -305,23 +285,13 @@
                                 </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Cuenta de Ingreso (Caja / Banco)</label>
-                                <select class="form-select" name="cuenta_id" required>
-                                    <option value="">Seleccionar cuenta...</option>
-                                    {% for c in cuentas %}
-                                    <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-
                             <div class="card bg-light border p-3 mb-3">
                                 <h6 class="fw-bold text-secondary mb-2"><i class="fas fa-calendar-alt me-1"></i> Cuotas generadas en Cuentas por Cobrar (CxC)</h6>
-                                <p class="text-muted small mb-0">El sistema generará automáticamente los vencimientos mensuales programados.</p>
+                                <p class="text-muted small mb-0">La cuenta y la moneda se eligen al cobrar cada cuota en Cuentas por Cobrar.</p>
                             </div>
                         </div>
 
-                        <!-- Columna Derecha: Tarjeta de Resultados y Márgenes -->
+                        <!-- Columna Derecha: Tarjeta de Resultados sin Costo Fijo -->
                         <div class="col-md-5">
                             <div class="card shadow-sm border bg-light h-100">
                                 <div class="card-header bg-white fw-bold text-dark">
@@ -343,15 +313,6 @@
                                     <div class="d-flex justify-content-between mb-2 text-danger">
                                         <span>(-) Costo de los servicios:</span>
                                         <strong id="lblCostoServicios">₲ 0</strong>
-                                    </div>
-                                    <hr>
-                                    <div class="d-flex justify-content-between mb-2 fw-bold">
-                                        <span>Margen de contribución:</span>
-                                        <span id="lblMargenContribucion" class="text-primary">₲ 0</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2 text-danger small">
-                                        <span>(-) Costo fijo por plan:</span>
-                                        <strong id="lblCostoFijo">₲ 0</strong>
                                     </div>
                                     <hr>
                                     <div class="p-3 rounded bg-success text-white text-center mt-3">
@@ -427,17 +388,13 @@ function actualizarDatosPaquete() {
     }
 
     let costoServicios = precio * 0.25;
-    let margenContribucion = precio - iva - tarifa - costoServicios;
-    let costoFijoPlan = 0; 
-    let gananciaPlan = margenContribucion - costoFijoPlan;
+    let gananciaPlan = precio - iva - tarifa - costoServicios;
     let porcMargen = precio > 0 ? (gananciaPlan / precio) * 100 : 0;
 
     document.getElementById('lblFacturacion').innerText = '₲ ' + precio.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblIva').innerText = '₲ ' + iva.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblTarifa').innerText = '₲ ' + tarifa.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblCostoServicios').innerText = '₲ ' + costoServicios.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblMargenContribucion').innerText = '₲ ' + margenContribucion.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblCostoFijo').innerText = '₲ ' + costoFijoPlan.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblGananciaPlan').innerText = '₲ ' + gananciaPlan.toLocaleString('es-PY', {maximumFractionDigits: 0});
     document.getElementById('lblPorcentajeMargen').innerText = porcMargen.toFixed(1) + '% del precio';
 }
