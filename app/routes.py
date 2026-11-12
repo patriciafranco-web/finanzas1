@@ -14,6 +14,7 @@ from io import StringIO, BytesIO
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.worksheet.datavalidation import DataValidation
+from werkzeug.security import generate_password_hash
 
 bp = Blueprint('main', __name__)
 
@@ -217,7 +218,6 @@ def _autoajustar_columnas_xlsx(ws):
         ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 45)
 
 def _leer_filas_archivo_importacion(archivo):
-    """Lee tanto archivos .xlsx (openpyxl) como .csv y devuelve la lista de filas."""
     nombre = (archivo.filename or '').lower()
     raw = archivo.read()
     if nombre.endswith('.xlsx'):
@@ -274,10 +274,36 @@ def actualizar_db_urgente():
     db.create_all()
     return "¡Esquema de base de datos sincronizado correctamente!"
 
+@bp.route('/crear-usuarios-aeterna')
+@login_required
+def crear_usuarios_aeterna():
+    if current_user.username.lower() != 'admin' and current_user.username.lower() != 'administracion':
+        return "No autorizado", 403
+
+    usuarios_a_crear = [
+        {"username": "romina.espinola", "pass": "Romina2026*"},
+        {"username": "pedro.calabrese", "pass": "Pedro2026*"},
+        {"username": "fatima.lopez", "pass": "Fatima2026*"},
+        {"username": "nadia.bortolace", "pass": "Nadia2026*"},
+        {"username": "administracion", "pass": "Admin2026*"}
+    ]
+
+    creados = 0
+    for u_data in usuarios_a_crear:
+        existente = User.query.filter_by(username=u_data["username"]).first()
+        if not existente:
+            nuevo_u = User(username=u_data["username"])
+            nuevo_u.set_password(u_data["pass"])
+            db.session.add(nuevo_u)
+            creados += 1
+
+    db.session.commit()
+    flash(f'Se han creado {creados} nuevos usuarios correctamente para el sistema AeternaFin.', 'success')
+    return redirect(url_for('main.dashboard'))
+
 @bp.route('/limpiar-datos-prueba')
 @login_required
 def limpiar_datos_prueba():
-    """Limpia el cobro erróneo de 22.500.000.000, las pruebas de $100 y TESTE NADOA indicados en el PDF."""
     if current_user.username.lower() == 'recepcion':
         return "No autorizado", 403
     eliminadas = 0
@@ -576,7 +602,6 @@ def editar_transaccion(id):
 @bp.route('/eliminar-transaccion/<int:id>', methods=['POST'])
 @login_required
 def eliminar_transaccion(id):
-    """Pág. 7: Excluir transacción deshace la baja y reabre el título en CxC o CxP."""
     t = Transaccion.query.get_or_404(id)
     msg_bloqueo = verificar_bloqueo_fecha(t.fecha, t.cuenta_id)
     if msg_bloqueo:
@@ -624,7 +649,6 @@ def eliminar_transaccion(id):
 @bp.route('/transferir', methods=['POST'])
 @login_required
 def transferir_cuentas():
-    """Pág. 5: Transferencia entre cuentas con cambio de moneda y dos transacciones vinculadas."""
     cuenta_origen_id = request.form.get('cuenta_origen_id', type=int)
     cuenta_destino_id = request.form.get('cuenta_destino_id', type=int)
     monto_salida = limpiar_monto(request.form.get('monto_salida') or request.form.get('monto') or 0)
@@ -702,7 +726,6 @@ def transferir_cuentas():
 @bp.route('/exportar-excel')
 @login_required
 def exportar_excel():
-    """Pág. 6 y 8: Exporta las transacciones filtradas en .xlsx con Moneda, Monto, Cotización, Equivalente en Gs. y Saldo Cuenta."""
     if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
 
@@ -788,7 +811,6 @@ def exportar_excel():
 @bp.route('/descargar-plantilla')
 @login_required
 def descargar_plantilla():
-    """Pág. 8: Descarga plantilla_transacciones.xlsx con hojas Transacciones, Listas (desplegables) e Instrucciones."""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Transacciones"
@@ -853,7 +875,7 @@ def descargar_plantilla():
         dv_cc.add("G2:G1000")
 
     ws_inst = wb.create_sheet("Instrucciones")
-    ws_inst.append(["Instrucciones para importar transacciones en ClínicaFin"])
+    ws_inst.append(["Instrucciones para importar transacciones en AeternaFin"])
     ws_inst[1][0].font = Font(bold=True, size=12)
     ws_inst.append(["1. Complete sus registros en la hoja 'Transacciones' a partir de la fila 2."])
     ws_inst.append(["2. Fecha: formato dd/mm/aaaa dentro de un período abierto."])
@@ -995,7 +1017,6 @@ def previsualizar_importacion():
 @bp.route('/importar-transacciones', methods=['POST'])
 @login_required
 def importar_transacciones():
-    """Pág. 9: Importa archivos .xlsx o .csv validando cada fila."""
     archivo = request.files.get('archivo')
     if not archivo or not archivo.filename:
         flash('Seleccione un archivo válido para importar.', 'danger')
@@ -1220,7 +1241,6 @@ def ventas_vista():
 @bp.route('/exportar-ventas-excel')
 @login_required
 def exportar_ventas_excel():
-    """Pág. 21: Genera ventas_aaaa-mm-dd.xlsx con 3 hojas reales: Ventas (con fila Totales), Cuotas y Cobros."""
     q = request.args.get('q', '').strip()
     paquete_id = request.args.get('paquete_id', type=int)
     forma_pago = request.args.get('forma_pago', '').strip()
@@ -1354,7 +1374,6 @@ def exportar_ventas_excel():
 @bp.route('/agregar-venta-completa', methods=['POST'])
 @login_required
 def agregar_venta_completa():
-    """Págs. 16, 17 y 18: Registrar Venta sin cuenta bancaria, sin costo fijo por plan y con cuotas mensuales reales en CxC."""
     cliente_id = int(request.form.get('cliente_id')) if request.form.get('cliente_id') else None
     paquete_id = int(request.form.get('paquete_id')) if request.form.get('paquete_id') else None
     forma_pago = request.form.get('forma_pago', 'Cuotas (CxC)')
@@ -1579,7 +1598,6 @@ def cxc_vista():
 @bp.route('/exportar-cxc-excel')
 @login_required
 def exportar_cxc_excel():
-    """Pág. 28: Exportar cuentas_por_cobrar_aaaa-mm-dd.xlsx respetando filtros activos."""
     q = request.args.get('q', '').strip()
     paquete_id = request.args.get('paquete_id', type=int)
     metodo_pago = request.args.get('metodo_pago', '').strip()
@@ -1645,7 +1663,6 @@ def exportar_cxc_excel():
 @bp.route('/registrar-cobro-avanzado', methods=['POST'])
 @login_required
 def registrar_cobro_avanzado():
-    """Págs. 3, 20, 29, 30 y 33: Cobro multimoneda con validación de saldo, cuenta de misma moneda, fecha y categoría del plan."""
     cxc_id = request.form.get('cxc_id', type=int)
     moneda_cobro = request.form.get('moneda_cobro', 'PYG')
     cotizacion = limpiar_monto(request.form.get('cotizacion') or 1.0)
@@ -1730,7 +1747,6 @@ def registrar_cobro_avanzado():
 @bp.route('/devolver-cobro-cxc/<int:id>', methods=['POST'])
 @login_required
 def devolver_cobro_cxc(id):
-    """Pág. 32: Devolver pago en CxC crea una Salida en Finanzas y reabre el saldo sin borrar el cobro original."""
     cxc = CuentaPorCobrar.query.get_or_404(id)
     tx_origen_id = request.form.get('transaccion_id', type=int)
     monto_devolver = limpiar_monto(request.form.get('monto_devolver') or 0.0)
@@ -1785,7 +1801,6 @@ def devolver_cobro_cxc(id):
 @bp.route('/cancelar-cuota-cxc/<int:id>', methods=['POST'])
 @login_required
 def cancelar_cuota_cxc(id):
-    """Pág. 32: Cancelar cuota (solo cuando Pagado = 0) con motivo obligatorio."""
     cxc = CuentaPorCobrar.query.get_or_404(id)
     if (cxc.pagado or 0) > 0:
         flash('Devuelva los pagos antes de cancelar la cuota.', 'danger')
@@ -1865,7 +1880,6 @@ def cxp_vista():
 @bp.route('/exportar-cxp-excel')
 @login_required
 def exportar_cxp_excel():
-    """Pág. 28: Exportar cuentas_a_pagar_aaaa-mm-dd.xlsx respetando filtros activos."""
     q = request.args.get('q', '').strip()
     categoria_id = request.args.get('categoria_id', type=int)
     metodo_pago = request.args.get('metodo_pago', '').strip()
@@ -1966,7 +1980,6 @@ def agregar_cxp():
 @bp.route('/pagar-cxp/<int:id>', methods=['POST'])
 @login_required
 def pagar_cxp(id):
-    """Pág. 34: Pago de CxP con soporte de pago parcial, multimoneda, fecha y bloqueo."""
     if current_user.username.lower() == 'recepcion':
         flash('Acceso no autorizado.', 'danger')
         return redirect(url_for('main.cxp_vista'))
@@ -2026,7 +2039,6 @@ def pagar_cxp(id):
 @bp.route('/devolver-pago-cxp/<int:id>', methods=['POST'])
 @login_required
 def devolver_pago_cxp(id):
-    """Pág. 34: Devolver pago en CxP crea un Ingreso en Finanzas y reabre el saldo del título."""
     cxp = CuentaPorPagar.query.get_or_404(id)
     tx_origen_id = request.form.get('transaccion_id', type=int)
     monto_devolver = limpiar_monto(request.form.get('monto_devolver') or 0.0)
@@ -2075,7 +2087,6 @@ def devolver_pago_cxp(id):
 @bp.route('/cancelar-cxp/<int:id>', methods=['POST'])
 @login_required
 def cancelar_cxp(id):
-    """Pág. 34: Cancelar cuenta a pagar cuando Pagado = 0 con motivo obligatorio."""
     cxp = CuentaPorPagar.query.get_or_404(id)
     if (cxp.pagado or 0) > 0:
         flash('Devuelva los pagos antes de cancelar esta cuenta a pagar.', 'danger')
@@ -2274,7 +2285,6 @@ def editar_centro_costo(id):
 @bp.route('/eliminar-centro-costo/<int:id>', methods=['POST'])
 @login_required
 def eliminar_centro_costo(id):
-    """Pág. 24: Si el Centro de Costo está en uso, no se borra: se inactiva e informa cuántos movimientos lo usan."""
     if current_user.username.lower() == 'recepcion':
         flash('Acceso no autorizado.', 'danger')
         return redirect(url_for('main.cadastros'))
@@ -2328,7 +2338,6 @@ def agregar_paquete():
 @bp.route('/editar-paquete/<int:id>', methods=['POST'])
 @login_required
 def editar_paquete(id):
-    """Pág. 25: Editar plan agrega/quita servicios sin alterar las ventas ya registradas."""
     if current_user.username.lower() == 'recepcion':
         flash('Acceso no autorizado.', 'danger')
         return redirect(url_for('main.cadastros'))
