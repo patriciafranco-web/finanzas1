@@ -1,151 +1,313 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h2>Cuentas por Cobrar (CxC)</h2>
         <p class="text-muted mb-0">Gestión de cuotas pendientes, cobros multimoneda y descuentos autorizados</p>
     </div>
+    <div>
+        <a href="{{ url_for('main.exportar_cxc_excel', q=selected_q, paquete_id=selected_paquete or '', metodo_pago=selected_metodo or '', cuenta_id=selected_cuenta or '', fecha_desde=selected_desde, fecha_hasta=selected_hasta) }}" class="btn btn-outline-success fw-bold">
+            <i class="fa-solid fa-file-excel me-1"></i> Exportar Excel
+        </a>
+    </div>
 </div>
 
+<!-- Barra de Filtros (Pág. 28: Paciente, Plan, Forma de pago, Cuenta, Vencimiento Desde/Hasta) -->
+<form method="GET" action="{{ url_for('main.cxc_vista') }}" class="card shadow-sm mb-3 p-3 bg-light" id="cxcFilterForm">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white"><i class="fa-solid fa-search"></i></span>
+                <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Buscar paciente...">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" name="paquete_id">
+                <option value="">Todos los planes</option>
+                {% for p in paquetes %}
+                <option value="{{ p.id }}" {% if selected_paquete == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" name="metodo_pago">
+                <option value="">Todas las formas de pago</option>
+                <option value="Efectivo" {% if selected_metodo == 'Efectivo' %}selected{% endif %}>Efectivo</option>
+                <option value="Transferencia" {% if selected_metodo == 'Transferencia' %}selected{% endif %}>Transferencia</option>
+                <option value="Tarjeta" {% if selected_metodo == 'Tarjeta' %}selected{% endif %}>Tarjeta</option>
+                <option value="POS" {% if selected_metodo == 'POS' %}selected{% endif %}>POS</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" name="cuenta_id">
+                <option value="">Todas las cuentas</option>
+                {% for c in cuentas %}
+                <option value="{{ c.id }}" {% if selected_cuenta == c.id %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="row g-2 align-items-center mt-1">
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">Desde</span>
+                <input type="date" class="form-control" name="fecha_desde" value="{{ selected_desde }}">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">Hasta</span>
+                <input type="date" class="form-control" name="fecha_hasta" value="{{ selected_hasta }}">
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{{ url_for('main.cxc_vista') }}" class="btn btn-outline-dark btn-sm">
+                <i class="fa-solid fa-xmark me-1"></i> Limpiar
+            </a>
+        </div>
+    </div>
+</form>
+
+<!-- Tabla Principal de Cuentas por Cobrar (Pág. 27 y 31) -->
 <div class="card shadow-sm">
-    <div class="card-body p-0">
+    <div class="card-body p-0 table-responsive">
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
                 <tr>
+                    <th>Fecha Emisión</th>
+                    <th>Concepto</th>
                     <th>Cliente / Paciente</th>
-                    <th>Resumen de Cuotas</th>
-                    <th>Monto Total Acumulado</th>
-                    <th>Pendientes</th>
-                    <th class="text-center">Acciones / Desplegar</th>
+                    <th>Vencimiento</th>
+                    <th>Moneda</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-end">Pagado</th>
+                    <th class="text-end">Saldo</th>
+                    <th class="text-center">Estado</th>
+                    <th>Forma de pago</th>
+                    <th>Cuenta</th>
+                    <th class="text-center">Acciones</th>
                 </tr>
             </thead>
             <tbody>
-                {% if cxc_list %}
-                    <!-- Agrupamos dinámicamente las cuentas por cobrar según el nombre del cliente -->
-                    {% for cliente_nombre, cuotas_grupo in cxc_list | groupby('cliente.nombre') %}
-                    <tr>
-                        <td class="fw-bold text-primary"><i class="fa-solid fa-user me-1"></i> {{ cliente_nombre }}</td>
-                        <td>{{ cuotas_grupo | length }} cuota(s) en total</td>
-                        <td class="fw-bold">₲ {{ "{:,.0f}".format(cuotas_grupo | sum(attribute='monto')).replace(',', '.') }}</td>
-                        <td>
-                            {% set pendientes = cuotas_grupo | selectattr('estado', 'equalto', 'Pendiente') | list %}
-                            <span class="badge {% if pendientes | length > 0 %}bg-warning text-dark{% else %}bg-success{% endif %}">
-                                {{ pendientes | length }} pendientes
-                            </span>
-                        </td>
-                        <td class="text-center">
-                            <button class="btn btn-sm btn-outline-primary fw-bold px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGrupo{{ loop.index }}">
-                                <i class="fa-solid fa-bars-staggered me-1"></i> Ver cuotas <i class="fa-solid fa-chevron-down ms-1"></i>
+                {% for x in cxc_list %}
+                {% set saldo_x = x.saldo if (x.saldo is not none and x.estado != 'Cancelado') else ((x.monto or 0) - (x.pagado or 0)) %}
+                <tr>
+                    <td>{{ x.fecha_emision.strftime('%d/%m/%Y') if x.fecha_emision else '-' }}</td>
+                    <td class="fw-bold text-dark">{{ x.concepto }}</td>
+                    <td>{{ x.cliente.nombre if x.cliente else 'Particular' }}</td>
+                    <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}</td>
+                    <td><span class="badge bg-secondary-subtle text-dark">{{ x.moneda or 'PYG' }}</span></td>
+                    <td class="text-end fw-bold">₲ {{ "{:,.0f}".format(x.monto or 0).replace(',', '.') }}</td>
+                    <td class="text-end text-success fw-bold">₲ {{ "{:,.0f}".format(x.pagado or 0).replace(',', '.') }}</td>
+                    <td class="text-end {% if saldo_x > 0 %}text-danger{% else %}text-muted{% endif %} fw-bold">
+                        ₲ {{ "{:,.0f}".format(saldo_x).replace(',', '.') }}
+                    </td>
+                    <td class="text-center">
+                        {% if x.estado == 'Pagado' %}
+                            <span class="badge bg-success">Pagado</span>
+                        {% elif x.estado == 'Parcial' %}
+                            <span class="badge bg-info text-dark">Parcial</span>
+                        {% elif x.estado == 'Cancelado' %}
+                            <span class="badge bg-secondary" title="{{ x.motivo_cancelacion or '' }}">Cancelado</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">Pendiente</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ x.metodo_pago if (x.pagado or 0) > 0 else '-' }}</td>
+                    <td>{{ x.cuenta_nombre if (x.pagado or 0) > 0 else '-' }}</td>
+                    <td class="text-center">
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                Acciones
                             </button>
-                        </td>
-                    </tr>
-                    <!-- Fila deslizante colapsable con el detalle de las cuotas de este cliente -->
-                    <tr class="collapse bg-light" id="collapseGrupo{{ loop.index }}">
-                        <td colspan="5" class="p-3">
-                            <table class="table table-sm table-bordered bg-white mb-0 align-middle">
-                                <thead class="table-secondary">
-                                    <tr>
-                                        <th>Fecha Emisión</th>
-                                        <th>Concepto</th>
-                                        <th>Vencimiento</th>
-                                        <th>Moneda</th>
-                                        <th>Monto</th>
-                                        <th>Estado</th>
-                                        <th class="text-center">Acción</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for x in cuotas_grupo %}
-                                    <tr>
-                                        <td>{{ x.fecha_emision.strftime('%d/%m/%Y') if x.fecha_emision else '-' }}</td>
-                                        <td class="fw-bold text-dark">{{ x.concepto }}</td>
-                                        <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}</td>
-                                        <td>{{ x.moneda }}</td>
-                                        <td class="fw-bold text-danger">₲ {{ "{:,.0f}".format(x.monto or 0).replace(',', '.') }}</td>
-                                        <td>
-                                            {% if x.estado == 'Pagado' %}
-                                            <span class="badge bg-success">Pagado</span>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <!-- 1. Cobrar: disponible en Pendiente y Parcial -->
+                                <li>
+                                    {% if x.estado in ('Pendiente', 'Parcial') and saldo_x > 0 %}
+                                    <button class="dropdown-item text-success fw-bold" type="button"
+                                            data-bs-toggle="modal" data-bs-target="#modalRegistrarCobro"
+                                            data-id="{{ x.id }}"
+                                            data-concepto="{{ x.concepto }}"
+                                            data-vencimiento="{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}"
+                                            data-saldo="{{ saldo_x }}"
+                                            onclick="llenarModalCobro(this)">
+                                        <i class="fa-solid fa-hand-holding-dollar me-1"></i> Cobrar
+                                    </button>
+                                    {% else %}
+                                    <span class="dropdown-item text-muted disabled" title="No disponible en estado {{ x.estado }}">
+                                        <i class="fa-solid fa-hand-holding-dollar me-1"></i> Cobrar
+                                    </span>
+                                    {% endif %}
+                                </li>
+
+                                <!-- 2. Devolver pago: disponible en Parcial y Pagado -->
+                                <li>
+                                    {% if x.estado in ('Parcial', 'Pagado') and (x.pagado or 0) > 0 %}
+                                    <button class="dropdown-item text-warning text-dark" type="button"
+                                            data-bs-toggle="modal" data-bs-target="#modalDevolverCobro{{ x.id }}">
+                                        <i class="fa-solid fa-rotate-left me-1"></i> Devolver pago
+                                    </button>
+                                    {% else %}
+                                    <span class="dropdown-item text-muted disabled" title="Solo disponible cuando la cuota tiene pagos registrados">
+                                        <i class="fa-solid fa-rotate-left me-1"></i> Devolver pago
+                                    </span>
+                                    {% endif %}
+                                </li>
+
+                                <!-- 3. Cancelar: solo cuando Pagado = 0 y está Pendiente -->
+                                <li>
+                                    {% if x.estado == 'Pendiente' and (x.pagado or 0) == 0 %}
+                                    <button class="dropdown-item text-danger" type="button"
+                                            data-bs-toggle="modal" data-bs-target="#modalCancelarCuota{{ x.id }}">
+                                        <i class="fa-solid fa-ban me-1"></i> Cancelar
+                                    </button>
+                                    {% else %}
+                                    <span class="dropdown-item text-muted disabled" title="Devuelva los pagos antes de cancelar">
+                                        <i class="fa-solid fa-ban me-1"></i> Cancelar (devolver antes)
+                                    </span>
+                                    {% endif %}
+                                </li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Modal Devolver Pago (Pág. 32) -->
+                <div class="modal fade" id="modalDevolverCobro{{ x.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="{{ url_for('main.devolver_cobro_cxc', id=x.id) }}" method="POST">
+                                <div class="modal-header bg-warning text-dark">
+                                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-rotate-left me-1"></i> Devolver pago</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="small text-muted mb-2">Cuota: <strong>{{ x.concepto }}</strong></p>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Pago a devolver</label>
+                                        <select class="form-select" name="transaccion_id">
+                                            {% for p_tx in x.pagos if p_tx.tipo == 'Ingreso' and not p_tx.es_devolucion %}
+                                            <option value="{{ p_tx.id }}">
+                                                {{ p_tx.fecha.strftime('%d/%m/%Y') }} - {{ p_tx.moneda }} {{ "{:,.2f}".format(p_tx.monto) if p_tx.moneda != 'PYG' else "{:,.0f}".format(p_tx.monto).replace(',', '.') }} ({{ p_tx.cuenta.nombre if p_tx.cuenta else 'Caja' }})
+                                            </option>
                                             {% else %}
-                                            <span class="badge bg-warning text-dark">Pendiente</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="text-center">
-                                            {% if x.estado != 'Pagado' %}
-                                            <button class="btn btn-sm btn-success fw-bold" 
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#modalRegistrarCobro"
-                                                    data-id="{{ x.id }}"
-                                                    data-concepto="{{ x.concepto }}"
-                                                    data-vencimiento="{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}"
-                                                    data-saldo="{{ x.monto }}"
-                                                    onclick="llenarModalCobro(this)">
-                                                <i class="fas fa-hand-holding-usd me-1"></i> Cobrar
-                                            </button>
-                                            {% else %}
-                                            <span class="text-muted small">Liquidado</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                                            <option value="">Pago registrado - ₲ {{ "{:,.0f}".format(x.pagado or 0).replace(',', '.') }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-bold">Fecha de la devolución</label>
+                                            <input type="date" class="form-control" name="fecha_devolucion" value="{{ hoy_str }}" required>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-bold">Monto a devolver</label>
+                                            <input type="number" step="any" class="form-control" name="monto_devolver" value="{{ x.pagado or 0 }}" required>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Cuenta de salida</label>
+                                        <select class="form-select" name="cuenta_id" required>
+                                            {% for c in cuentas %}
+                                            <option value="{{ c.id }}" {% if x.cuenta_id == c.id %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
+                                        <input type="text" class="form-control" name="motivo" required placeholder="Ej: Cobro duplicado / Devolución al paciente">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button type="submit" class="btn btn-warning fw-bold">Confirmar devolución</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Cancelar Cuota (Pág. 32) -->
+                <div class="modal fade" id="modalCancelarCuota{{ x.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="{{ url_for('main.cancelar_cuota_cxc', id=x.id) }}" method="POST">
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-ban me-1"></i> Cancelar cuota</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>¿Cancelar <strong>{{ x.concepto }}</strong>? La cuota dejará de contar en el saldo pendiente de la venta.</p>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
+                                        <input type="text" class="form-control" name="motivo" required placeholder="Ej: Plan renegociado">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Volver</button>
+                                    <button type="submit" class="btn btn-danger fw-bold">Cancelar cuota</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
                 {% else %}
-                    <tr><td colspan="5" class="text-center py-4 text-muted">No hay cuentas por cobrar registradas.</td></tr>
-                {% endif %}
+                <tr><td colspan="12" class="text-center py-4 text-muted">No hay cuentas por cobrar que coincidan con los filtros.</td></tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- Modal Registrar Cobro Avanzado (Multimoneda y Descuento) -->
+<!-- Modal Registrar Cobro de Cuota (Págs. 29, 30 y 33: Moneda filtra cuentas + Monto calculado solo) -->
 <div class="modal fade" id="modalRegistrarCobro" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form action="{{ url_for('main.registrar_cobro_avanzado') }}" method="POST" onsubmit="limpiarFormatoCobro()">
+            <form action="{{ url_for('main.registrar_cobro_avanzado') }}" method="POST" onsubmit="return validarAntesDeConfirmarCobro()">
                 <div class="modal-header bg-success text-white">
                     <h5 class="modal-title fw-bold"><i class="fas fa-hand-holding-usd me-2"></i> Registrar Cobro de Cuota</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="cxc_id" id="cobroCxcId">
+                    <input type="hidden" id="cobroSaldoBaseGs" value="0">
                     
                     <div class="alert alert-light border p-3 mb-3">
                         <div class="row">
-                            <div class="col-md-4"><strong>Concepto:</strong> <span id="lblCobroConcepto">-</span></div>
-                            <div class="col-md-4"><strong>Vencimiento:</strong> <span id="lblCobroVencimiento">-</span></div>
+                            <div class="col-md-5"><strong>Concepto:</strong> <span id="lblCobroConcepto">-</span></div>
+                            <div class="col-md-3"><strong>Vencimiento:</strong> <span id="lblCobroVencimiento">-</span></div>
                             <div class="col-md-4"><strong>Saldo Cuota:</strong> <span id="lblCobroSaldo" class="text-danger fw-bold">-</span></div>
                         </div>
                     </div>
 
                     <div class="row">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Fecha del cobro</label>
+                            <input type="date" class="form-control" name="fecha_cobro" value="{{ hoy_str }}" required>
+                        </div>
+                        <div class="col-md-3 mb-3">
                             <label class="form-label fw-bold">Moneda del Cobro</label>
-                            <select class="form-select" name="moneda_cobro" id="monedaCobro" onchange="toggleMonedaCobro(this)">
+                            <select class="form-select" name="moneda_cobro" id="monedaCobro" onchange="cambiarMonedaCobro()">
                                 <option value="PYG">PYG (₲)</option>
-                                <option value="USD">USD ($)</option>
+                                <option value="USD">USD (US$)</option>
                                 <option value="BRL">BRL (R$)</option>
                             </select>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label fw-bold">Cotización del Día</label>
-                            <input type="text" class="form-control moneda-input" id="inputCotizacionVisual" value="1" oninput="calcularEquivalenteCobro()">
-                            <input type="hidden" name="cotizacion" id="inputCotizacionReal" value="1">
+                            <input type="number" step="any" class="form-control" name="cotizacion" id="inputCotizacionCobro" value="1" readOnly oninput="recalcularMontoSugeridoCobro()">
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Monto Recibido</label>
-                            <input type="text" class="form-control moneda-input" id="inputMontoVisual" required oninput="calcularEquivalenteCobro()">
-                            <input type="hidden" name="monto_recibido" id="inputMontoReal" value="0">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold" id="lblMontoRecibido">Monto Recibido (₲)</label>
+                            <input type="number" step="any" class="form-control" name="monto_recibido" id="inputMontoCobro" required oninput="actualizarEquivalenteCobroManual()">
+                            <small class="text-primary fw-bold d-block mt-1" id="ayudaSaldoMoneda"></small>
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Descuento Concedido (Opcional)</label>
-                            <input type="text" class="form-control moneda-input" id="inputDescuentoVisual" value="0" placeholder="0">
-                            <input type="hidden" name="descuento" id="inputDescuentoReal" value="0">
+                            <label class="form-label fw-bold">Descuento Concedido (₲ - Opcional)</label>
+                            <input type="number" step="any" class="form-control" name="descuento" id="inputDescuentoCobro" value="0" min="0" oninput="recalcularMontoSugeridoCobro()">
                             <small class="text-muted">Reduce el saldo sin generar dinero recibido.</small>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -160,29 +322,32 @@
                             <select class="form-select" name="forma_cobro" required>
                                 <option value="Efectivo">Efectivo</option>
                                 <option value="Transferencia">Transferencia</option>
-                                <option value="Tarjeta de crédito">Tarjeta de crédito</option>
+                                <option value="Tarjeta">Tarjeta</option>
                                 <option value="POS">POS</option>
                                 <option value="PIX">PIX</option>
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Cuenta de Baja (Ingreso)</label>
-                            <select class="form-select" name="cuenta_id" required>
-                                <option value="">Seleccionar cuenta...</option>
+                            <label class="form-label fw-bold">Cuenta de Baja (Ingreso): solo esta moneda</label>
+                            <select class="form-select" name="cuenta_id" id="selectCuentaCobro" required>
                                 {% for c in cuentas %}
-                                <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
+                                <option value="{{ c.id }}" data-moneda="{{ c.moneda }}">{{ c.nombre }} ({{ c.moneda }})</option>
                                 {% endfor %}
                             </select>
+                            <div id="avisoSinCuentaCobro" class="small text-danger mt-1" style="display:none;">
+                                No hay cuentas en esta moneda. <a href="{{ url_for('main.cadastros') }}" class="fw-bold">Ir a Cadastros &gt; Cuentas</a>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="alert alert-info py-2 px-3 mt-2 mb-0">
+                    <div class="alert alert-info py-2 px-3 mt-2 mb-0 d-flex justify-content-between align-items-center">
                         <small><strong>Equivalente calculado en Gs.:</strong> <span id="lblEquivalenteGs">0</span> Gs.</small>
+                        <small id="alertaExcesoSaldo" class="text-danger fw-bold" style="display:none;">¡El monto supera el saldo de la cuota!</small>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success fw-bold px-4">Confirmar Cobro</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4" id="btnConfirmarCobro">Confirmar Cobro</button>
                 </div>
             </form>
         </div>
@@ -190,80 +355,148 @@
 </div>
 
 <script>
-document.addEventListener('input', function(e) {
-    if (e.target.classList.contains('moneda-input')) {
-        let valorLimpio = e.target.value.replace(/\D/g, '');
-        if (valorLimpio !== '') {
-            let numero = parseInt(valorLimpio, 10);
-            e.target.value = numero.toLocaleString('es-PY');
-            
-            if (e.target.id === 'inputMontoVisual') {
-                document.getElementById('inputMontoReal').value = numero;
-            } else if (e.target.id === 'inputCotizacionVisual') {
-                document.getElementById('inputCotizacionReal').value = numero;
-            } else if (e.target.id === 'inputDescuentoVisual') {
-                document.getElementById('inputDescuentoReal').value = numero;
-            }
-        } else {
-            e.target.value = '';
-            if (e.target.id === 'inputMontoVisual') {
-                document.getElementById('inputMontoReal').value = '0';
-            } else if (e.target.id === 'inputCotizacionVisual') {
-                document.getElementById('inputCotizacionReal').value = '1';
-            } else if (e.target.id === 'inputDescuentoVisual') {
-                document.getElementById('inputDescuentoReal').value = '0';
-            }
-        }
-        calcularEquivalenteCobro();
-    }
-});
-
-function limpiarFormatoCobro() {
-    let mVisual = document.getElementById('inputMontoVisual');
-    let cVisual = document.getElementById('inputCotizacionVisual');
-    let dVisual = document.getElementById('inputDescuentoVisual');
-    
-    if (mVisual) document.getElementById('inputMontoReal').value = mVisual.value.replace(/\./g, '').replace(/,/g, '') || '0';
-    if (cVisual) document.getElementById('inputCotizacionReal').value = cVisual.value.replace(/\./g, '').replace(/,/g, '') || '1';
-    if (dVisual) document.getElementById('inputDescuentoReal').value = dVisual.value.replace(/\./g, '').replace(/,/g, '') || '0';
-}
-
 function llenarModalCobro(button) {
     document.getElementById('cobroCxcId').value = button.getAttribute('data-id');
     document.getElementById('lblCobroConcepto').innerText = button.getAttribute('data-concepto');
     document.getElementById('lblCobroVencimiento').innerText = button.getAttribute('data-vencimiento');
     let saldo = parseFloat(button.getAttribute('data-saldo')) || 0;
-    document.getElementById('lblCobroSaldo').innerText = '₲ ' + saldo.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    
-    let inputMontoVisual = document.getElementById('inputMontoVisual');
-    let inputMontoReal = document.getElementById('inputMontoReal');
-    inputMontoVisual.value = saldo.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    inputMontoReal.value = saldo;
-    
-    calcularEquivalenteCobro();
+    document.getElementById('cobroSaldoBaseGs').value = saldo;
+    document.getElementById('lblCobroSaldo').innerText = '₲ ' + Math.round(saldo).toLocaleString('es-PY');
+    document.getElementById('inputDescuentoCobro').value = 0;
+    document.getElementById('monedaCobro').value = 'PYG';
+    cambiarMonedaCobro();
 }
 
-function toggleMonedaCobro(select) {
-    let cotizVisual = document.getElementById('inputCotizacionVisual');
-    let cotizReal = document.getElementById('inputCotizacionReal');
-    if(select.value === 'PYG') {
-        cotizVisual.value = '1';
-        cotizReal.value = '1';
-        cotizVisual.readOnly = true;
+function cambiarMonedaCobro() {
+    const moneda = document.getElementById('monedaCobro').value;
+    const cotInput = document.getElementById('inputCotizacionCobro');
+    const selectCuenta = document.getElementById('selectCuentaCobro');
+    const aviso = document.getElementById('avisoSinCuentaCobro');
+    const lblMonto = document.getElementById('lblMontoRecibido');
+
+    const simbolos = {'PYG': '₲', 'USD': 'US$', 'BRL': 'R$'};
+    lblMonto.textContent = `Monto Recibido (${simbolos[moneda] || moneda})`;
+
+    if (moneda === 'PYG') {
+        cotInput.value = 1;
+        cotInput.readOnly = true;
     } else {
-        cotizVisual.readOnly = false;
-        let defVal = select.value === 'USD' ? '7.500' : '1.400';
-        cotizVisual.value = defVal;
-        cotizReal.value = select.value === 'USD' ? '7500' : '1400';
+        cotInput.readOnly = false;
+        cotInput.value = moneda === 'USD' ? 7500 : 1400;
     }
-    calcularEquivalenteCobro();
+
+    // Filtrar cuentas por la moneda elegida (Pág. 29)
+    let primera = null;
+    let visibles = 0;
+    Array.from(selectCuenta.options).forEach(opt => {
+        if (opt.getAttribute('data-moneda') === moneda) {
+            opt.hidden = false;
+            opt.disabled = false;
+            visibles++;
+            if (!primera) primera = opt.value;
+        } else {
+            opt.hidden = true;
+            opt.disabled = true;
+        }
+    });
+
+    if (visibles > 0) {
+        selectCuenta.value = primera;
+        aviso.style.display = 'none';
+    } else {
+        selectCuenta.value = '';
+        aviso.style.display = 'block';
+    }
+
+    recalcularMontoSugeridoCobro();
 }
 
-function calcularEquivalenteCobro() {
-    let monto = parseFloat(document.getElementById('inputMontoReal').value) || 0;
-    let cotiz = parseFloat(document.getElementById('inputCotizacionReal').value) || 1;
-    let totalGs = monto * cotiz;
-    document.getElementById('lblEquivalenteGs').innerText = totalGs.toLocaleString('es-PY', {maximumFractionDigits: 0});
+function recalcularMontoSugeridoCobro() {
+    // Pág. 30: Monto Recibido = (Saldo Cuota - Descuento) ÷ Cotización
+    const moneda = document.getElementById('monedaCobro').value;
+    const saldoBase = parseFloat(document.getElementById('cobroSaldoBaseGs').value) || 0;
+    const descuento = parseFloat(document.getElementById('inputDescuentoCobro').value) || 0;
+    const cotiz = parseFloat(document.getElementById('inputCotizacionCobro').value) || 1;
+    const montoInput = document.getElementById('inputMontoCobro');
+    const ayuda = document.getElementById('ayudaSaldoMoneda');
+
+    let saldoNetoGs = Math.max(0, saldoBase - descuento);
+
+    if (moneda === 'PYG') {
+        montoInput.value = Math.round(saldoNetoGs);
+        ayuda.textContent = '';
+    } else {
+        let sugerido = cotiz > 0 ? (saldoNetoGs / cotiz) : 0;
+        montoInput.value = sugerido.toFixed(2);
+        const simb = moneda === 'USD' ? 'US$' : 'R$';
+        ayuda.textContent = `Saldo en ${moneda}: ${simb} ${sugerido.toFixed(2)}`;
+    }
+    actualizarEquivalenteCobroManual();
 }
+
+function actualizarEquivalenteCobroManual() {
+    const moneda = document.getElementById('monedaCobro').value;
+    const saldoBase = parseFloat(document.getElementById('cobroSaldoBaseGs').value) || 0;
+    const descuento = parseFloat(document.getElementById('inputDescuentoCobro').value) || 0;
+    const cotiz = parseFloat(document.getElementById('inputCotizacionCobro').value) || 1;
+    const monto = parseFloat(document.getElementById('inputMontoCobro').value) || 0;
+    const selectCuenta = document.getElementById('selectCuentaCobro');
+    const alerta = document.getElementById('alertaExcesoSaldo');
+    const btn = document.getElementById('btnConfirmarCobro');
+
+    let saldoNetoGs = Math.max(0, saldoBase - descuento);
+    let eqGs = moneda === 'PYG' ? monto : Math.round(monto * cotiz);
+    if (moneda !== 'PYG' && cotiz > 0) {
+        let sugerido = parseFloat((saldoNetoGs / cotiz).toFixed(2));
+        if (Math.abs(monto - sugerido) <= 0.02) {
+            eqGs = saldoNetoGs;
+        }
+    }
+
+    document.getElementById('lblEquivalenteGs').innerText = Math.round(eqGs).toLocaleString('es-PY');
+
+    if (eqGs > (saldoNetoGs + 10)) {
+        alerta.style.display = 'inline';
+        btn.disabled = true;
+    } else {
+        alerta.style.display = 'none';
+        btn.disabled = !selectCuenta.value || (moneda !== 'PYG' && cotiz <= 0);
+    }
+}
+
+function validarAntesDeConfirmarCobro() {
+    const saldoBase = parseFloat(document.getElementById('cobroSaldoBaseGs').value) || 0;
+    const descuento = parseFloat(document.getElementById('inputDescuentoCobro').value) || 0;
+    const cotiz = parseFloat(document.getElementById('inputCotizacionCobro').value) || 1;
+    const monto = parseFloat(document.getElementById('inputMontoCobro').value) || 0;
+    const moneda = document.getElementById('monedaCobro').value;
+    let saldoNetoGs = Math.max(0, saldoBase - descuento);
+    let eqGs = moneda === 'PYG' ? monto : (monto * cotiz);
+    if (moneda !== 'PYG' && Math.abs(monto - (saldoNetoGs / cotiz)) <= 0.02) {
+        eqGs = saldoNetoGs;
+    }
+    if (eqGs > saldoNetoGs + 10) {
+        alert('El monto supera el saldo de la cuota.');
+        return false;
+    }
+    return true;
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById('cxcFilterForm');
+    if (form) {
+        form.querySelectorAll('select, input[type="date"]').forEach(function(el) {
+            el.addEventListener('change', function() { form.submit(); });
+        });
+        let searchInput = form.querySelector('input[name="q"]');
+        if (searchInput) {
+            let timeout = null;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(function() { form.submit(); }, 600);
+            });
+        }
+    }
+});
 </script>
 {% endblock %}
