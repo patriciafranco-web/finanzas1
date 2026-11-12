@@ -15,7 +15,7 @@
     </div>
 </div>
 
-<!-- Barra de Filtros (Pág. 28: Proveedor, Categoría, Forma de pago, Cuenta, Vencimiento Desde/Hasta) -->
+<!-- Barra de Filtros -->
 <form method="GET" action="{{ url_for('main.cxp_vista') }}" class="card shadow-sm mb-3 p-3 bg-light" id="cxpFilterForm">
     <div class="row g-2 align-items-center">
         <div class="col-md-3">
@@ -38,6 +38,7 @@
                 <option value="Efectivo" {% if selected_metodo == 'Efectivo' %}selected{% endif %}>Efectivo</option>
                 <option value="Transferencia" {% if selected_metodo == 'Transferencia' %}selected{% endif %}>Transferencia</option>
                 <option value="Tarjeta" {% if selected_metodo == 'Tarjeta' %}selected{% endif %}>Tarjeta</option>
+                <option value="Cheque" {% if selected_metodo == 'Cheque' %}selected{% endif %}>Cheque</option>
             </select>
         </div>
         <div class="col-md-3">
@@ -70,7 +71,7 @@
     </div>
 </form>
 
-<!-- Tabla Principal de Cuentas a Pagar (Págs. 27 y 34) -->
+<!-- Tabla Principal de Cuentas a Pagar -->
 <div class="card shadow-sm">
     <div class="card-body p-0 table-responsive">
         <table class="table table-hover mb-0 align-middle">
@@ -181,7 +182,7 @@
                     </td>
                 </tr>
 
-                <!-- Modal Devolver Pago CxP (Pág. 34) -->
+                <!-- Modal Devolver Pago CxP -->
                 <div class="modal fade" id="modalDevolverCxP{{ p.id }}" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
@@ -224,7 +225,7 @@
                     </div>
                 </div>
 
-                <!-- Modal Cancelar CxP (Pág. 34) -->
+                <!-- Modal Cancelar CxP -->
                 <div class="modal fade" id="modalCancelarCxP{{ p.id }}" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
@@ -256,13 +257,13 @@
     </div>
 </div>
 
-<!-- Modal Pagar CxP Multimoneda (Pág. 34) -->
+<!-- Modal Pagar CxP Multimoneda -->
 <div class="modal fade" id="modalPagarCxP" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form id="formPagarCxP" method="POST">
                 <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-money-bill-Wave me-2"></i> Registrar Pago de Cuenta a Pagar</h5>
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-money-bill-wave me-2"></i> Registrar Pago de Cuenta a Pagar</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -325,13 +326,13 @@
     </div>
 </div>
 
-<!-- Modal Nueva Cuenta a Pagar -->
+<!-- Modal Nueva Cuenta a Pagar (Con Método de Pago y Sección de Anexos / Comprobantes como estaba antes) -->
 <div class="modal fade" id="modalCxP" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form action="{{ url_for('main.agregar_cxp') }}" method="POST" onsubmit="limpiarFormatoCxP()">
+            <form action="{{ url_for('main.agregar_cxp') }}" method="POST" enctype="multipart/form-data" onsubmit="limpiarFormatoCxP()">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Crear Cuenta a Pagar</h5>
+                    <h5 class="modal-title">Crear Cuenta a Pagar</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -351,24 +352,33 @@
                             <label class="form-label fw-bold">Categoría del Gasto</label>
                             <select class="form-select" name="categoria_id">
                                 <option value="">Selecciona una categoría...</option>
-                                {% for cat in categorias if cat.tipo == 'Salida' %}
+                                {% for cat in categorias %}
                                 <option value="{{ cat.id }}">{{ cat.nombre }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label fw-bold">Moneda</label>
                             <select class="form-select" name="moneda" required>
                                 <option value="PYG">PYG (₲)</option>
-                                <option value="USD">USD (US$)</option>
+                                <option value="USD">USD ($)</option>
                                 <option value="BRL">BRL (R$)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Método de Pago</label>
+                            <select class="form-select" name="metodo_pago">
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Transferencia">Transferencia</option>
+                                <option value="Tarjeta">Tarjeta</option>
+                                <option value="Cheque">Cheque</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Monto Total *</label>
+                            <label class="form-label fw-bold">Monto *</label>
                             <input type="text" class="form-control moneda-input" id="inputMontoCxPVisual" required placeholder="1.000.000">
                             <input type="hidden" name="monto" id="inputMontoCxPReal">
                         </div>
@@ -377,10 +387,20 @@
                             <input type="date" class="form-control" name="fecha_vencimiento" value="{{ hoy_str }}" required>
                         </div>
                     </div>
+
+                    <!-- SECCIÓN DE ANEXOS / COMPROBANTES -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Anexos / Comprobantes</label>
+                        <div class="border border-dashed rounded p-4 text-center bg-light">
+                            <i class="fa-solid fa-cloud-arrow-up fa-2x text-muted mb-2"></i>
+                            <p class="mb-1 text-muted small">Arrastre e solte arquivos aqui ou clique para selecionar</p>
+                            <input type="file" class="form-control form-control-sm mt-2" name="archivo_anexo">
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary fw-bold">Guardar Cuenta a Pagar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Cuenta a Pagar</button>
                 </div>
             </form>
         </div>
