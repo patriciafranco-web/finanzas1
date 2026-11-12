@@ -2365,6 +2365,195 @@ def flujo_proyectado():
     ventas_activas = Venta.query.filter(Venta.estado != 'Cancelada').all()
     distribucion_costos = sum(((v.costo_servicios or 0) * 0.25) for v in ventas_activas)
     saldo_proyectado = total_cxc - (total_cxp + distribucion_costos)
+
+@bp.route('/reparar-datos-historicos')
+@login_required
+def reparar_datos_historicos():
+    if current_user.username.lower() == 'recepcion':
+        return "No autorizado", 403
+
+    # 1. Eliminar registros de prueba corruptos indicados en el PDF
+    eliminadas = 0
+    for t in Transaccion.query.all():
+        desc_up = (t.descripcion or '').upper()
+        es_teste = 'TESTE NADOA' in desc_up
+        es_error_usd = (t.monto and t.monto >= 1000000 and t.cuenta and t.cuenta.moneda == 'USD')
+        es_transf_100 = ('TRANSFERENCIA' in desc_up and t.monto == 100)
+        if es_teste or es_error_usd or es_transf_100:
+            cxc_rel = CuentaPorCobrar.query.get(t.cxc_id) if t.cxc_id else None
+            cxp_rel = CuentaPorPagar.query.get(t.cxp_id) if t.cxp_id else None
+            db.session.delete(t)
+            db.session.flush()
+            if cxc_rel:
+                recalcular_estado_cxc_y_venta(cxc_rel)
+            if cxp_rel:
+                recalcular_estado_cxp(cxp_rel)
+            eliminadas += 1
+
+    # 2. Corregir fechas de vencimiento escalonadas (mes a mes) en las cuotas de CxC
+    cuotas_corregidas = 0
+    for cxc in CuentaPorCobrar.query.all():
+        # Vincular venta_id si faltaba
+        if not cxc.venta_id and '(Venta #' in (cxc.concepto or ''):
+            try:
+                cxc.venta_id = int(cxc.concepto.split('(Venta #')[1].split(')')[0])
+            except Exception:
+                pass
+
+        # Extraer número de cuota (ej. "Cuota 2 de 5" -> índice 2)
+        if 'Cuota ' in (cxc.concepto or '') and ' de ' in (cxc.concepto or ''):
+            try:
+                parte_num = cxc.concepto.split('Cuota ')[1].split(' de ')[0].strip()
+                num_cuota_idx = int(parte_num)
+                total_part = cxc.concepto.split(' de ')[1].split('-')[0].split(' ')[0].strip()
+                cxc.numero_cuota_str = f"{num_cuota_idx} de {total_part}"
+                if num_cuota_idx > 1 and cxc.fecha_emision:
+                    venc_esperado = sumar_meses(cxc.fecha_emision, num_cuota_idx - 1)
+                    if not cxc.fecha_vencimiento or cxc.fecha_vencimiento.date() == cxc.fecha_emision.date():
+                        cxc.fecha_vencimiento = venc_esperado
+                        cuotas_corregidas += 1
+            except Exception:
+                pass
+        recalcular_estado_cxc_y_venta(cxc)
+
+    # 3. Sincronizar todas las ventas
+    for v in Venta.query.all():
+        recalcular_venta(v)
+
+    db.session.commit()
+    flash(f'Datos reparados: {eliminadas} transacción(es) de prueba eliminada(s) y {cuotas_corregidas} fecha(s) de vencimiento escalonada(s) corregida(s).', 'success')
+    return redirect(url_for('main.cxc_vista'))
+
+
+@bp.route('/previsualizar-importacion', methods=['POST'])
+@login_required
+def previsualizar_importacion():
+    archivo = request.files.get('archivo')
+    if not archivo or not archivo.filename:
+        return jsonify({'ok': False, 'error': 'Seleccione un archivo válido.'})
+
+    try:
+        contenido = archivo.read().decode('utf-8-sig', errors='ignore')
+        lineas = [l for l in contenido.splitlines() if l.strip()]
+        if not lineas:
+            return jsonify({'ok': False, 'error': 'El archivo está vacío.'})
+
+        delim = ';' if ';' in lineas[0] else ','
+        lector = list(csv.reader(StringIO(contenido), delimiter=delim))
+        encabezados = [h.strip().lower() for h in lector[0]]
+        if 'fecha' not in encabezados[0] or len(encabezados) < 8:
+            return jsonify({'ok': False, 'error': 'Plantilla inválida. Descargue y utilice la plantilla oficial.'})
+
+        filas_res = []
+        validas = avisos = errores = 0
+        vistas_en_archivo = set()
+
+        for idx, fila in enumerate(lector[1:], start=2):
+            if not fila or not any(c.strip() for c in fila):
+                continue
+            while len(fila) < 10:
+                fila.append('')
+
+            fecha_str, tipo_str, desc_str, pac_str, cat_str, cta_str, cc_str, met_str, monto_str, cot_str = [c.strip() for c in fila[:10]]
+            estado_fila = 'OK'
+            motivo = 'Válida'
+
+            # 1. Validar fecha
+            f_dt = None
+            for fmt in ('%d/%m/%Y', '%Y-%m-%d'):
+                try:
+                    f_dt = datetime.strptime(fecha_str, fmt)
+                    break
+                except ValueError:
+                    pass
+            if not f_dt:
+                estado_fila = 'Error'
+                motivo = 'Fecha inválida (use dd/mm/aaaa)'
+
+            # 2. Validar tipo y monto
+            monto_val = limpiar_monto(monto_str)
+            cot_val = limpiar_monto(cot_str) or 1.0
+            if estado_fila != 'Error' and tipo_str not in ('Ingreso', 'Salida'):
+                estado_fila = 'Error'
+                motivo = 'Tipo debe ser Ingreso o Salida'
+            if estado_fila != 'Error' and monto_val <= 0:
+                estado_fila = 'Error'
+                motivo = 'Monto debe ser mayor a cero'
+
+            # 3. Validar cuenta, categoría y centro de costo
+            cta = Cuenta.query.filter(Cuenta.nombre.ilike(cta_str)).first() if cta_str else None
+            if estado_fila != 'Error' and not cta:
+                estado_fila = 'Error'
+                motivo = f'Cuenta "{cta_str}" no existe'
+
+            if estado_fila != 'Error' and cat_str:
+                cat = Categoria.query.filter(Categoria.nombre.ilike(cat_str)).first()
+                if not cat:
+                    estado_fila = 'Error'
+                    motivo = f'Categoría "{cat_str}" no existe'
+
+            if estado_fila != 'Error' and cc_str:
+                cc = CentroCosto.query.filter(CentroCosto.nombre.ilike(cc_str)).first()
+                if not cc:
+                    estado_fila = 'Error'
+                    motivo = f'Centro de Costo "{cc_str}" no existe'
+
+            # 4. Validar bloqueo de período
+            if estado_fila != 'Error' and f_dt and cta:
+                if verificar_bloqueo_fecha(f_dt, cta.id):
+                    estado_fila = 'Error'
+                    motivo = 'Período cerrado o bloqueado'
+
+            # 5. Validar posible duplicado
+            if estado_fila != 'Error' and f_dt and cta:
+                clave = (f_dt.strftime('%Y-%m-%d'), desc_str.lower(), cta.id, round(monto_val, 2))
+                existe_bd = Transaccion.query.filter(
+                    db.func.date(Transaccion.fecha) == f_dt.date(),
+                    Transaccion.descripcion.ilike(desc_str),
+                    Transaccion.cuenta_id == cta.id,
+                    Transaccion.monto == monto_val
+                ).first()
+                if existe_bd or clave in vistas_en_archivo:
+                    estado_fila = 'Aviso'
+                    motivo = 'Posible duplicado'
+                vistas_en_archivo.add(clave)
+
+            if estado_fila == 'Error':
+                errores += 1
+            elif estado_fila == 'Aviso':
+                avisos += 1
+                validas += 1
+            else:
+                validas += 1
+
+            mon_simb = '₲' if (not cta or cta.moneda == 'PYG') else ('US$' if cta.moneda == 'USD' else 'R$')
+            filas_res.append({
+                'fila': idx,
+                'fecha': fecha_str,
+                'tipo': tipo_str,
+                'descripcion': desc_str,
+                'paciente': pac_str,
+                'categoria': cat_str,
+                'cuenta': cta_str,
+                'centro': cc_str,
+                'metodo': met_str,
+                'monto_fmt': f"{mon_simb} {monto_val:,.0f}".replace(',', '.') if mon_simb == '₲' else f"{mon_simb} {monto_val:,.2f}",
+                'monto_raw': monto_str,
+                'cotizacion': cot_str or '1',
+                'estado': estado_fila,
+                'motivo': motivo
+            })
+
+        return jsonify({
+            'ok': True,
+            'total': len(filas_res),
+            'validas': validas,
+            'avisos': avisos,
+            'errores': errores,
+            'filas': filas_res
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Error al leer el archivo: {str(e)}'})
     
     return render_template('flujo_proyectado.html', 
                            cxc_pendientes=cxc_pendientes, 
