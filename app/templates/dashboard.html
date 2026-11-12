@@ -1,21 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h2>Finanzas</h2>
         <p class="text-muted mb-0">Administra tus finanzas y control de caja multimoneda</p>
     </div>
-    <div class="d-flex align-items-center gap-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
         {% if bloqueos_activos %}
-        <span class="badge bg-danger p-2 fs-6"><i class="fa-solid fa-lock me-1"></i> Período Bloqueado</span>
+        <span class="badge bg-danger p-2 fs-6">
+            <i class="fa-solid fa-lock me-1"></i>
+            Período Bloqueado ({{ bloqueos_activos[0].periodo }})
+        </span>
         {% else %}
-        <span class="badge bg-success p-2 fs-6"><i class="fa-solid fa-lock-open me-1"></i> Período Abierto</span>
+        <span class="badge bg-success p-2 fs-6">
+            <i class="fa-solid fa-lock-open me-1"></i> Período Abierto
+        </span>
         {% endif %}
 
         <div>
-            <span class="badge bg-success p-2 me-2">PYG ₲ {{ "{:,.0f}".format(saldos.PYG).replace(',', '.') }}</span>
-            <span class="badge bg-primary p-2 me-2">USD $ {{ "{:,.2f}".format(saldos.USD) }}</span>
-            <span class="badge bg-warning text-dark p-2">BRL R$ {{ "{:,.2f}".format(saldos.BRL) }}</span>
+            <span class="badge bg-success p-2 me-2">PYG ₲ {{ "{:,.0f}".format(saldos.PYG or 0).replace(',', '.') }}</span>
+            <span class="badge bg-primary p-2 me-2">USD US$ {{ "{:,.2f}".format(saldos.USD or 0) }}</span>
+            <span class="badge bg-warning text-dark p-2">BRL R$ {{ "{:,.2f}".format(saldos.BRL or 0) }}</span>
         </div>
     </div>
 </div>
@@ -24,9 +29,9 @@
 <div class="alert alert-warning border-warning d-flex align-items-center justify-content-between mb-3 shadow-sm" role="alert">
     <div>
         <i class="fa-solid fa-triangle-exclamation text-warning me-2 fs-5"></i>
-        <strong>Período bloqueado:</strong> No se permiten alteraciones: nuevas transacciones, ediciones, anulaciones ni importaciones con fecha de este período.
+        <strong>Período con bloqueo activo:</strong> No se permiten alteraciones (nuevas transacciones, ediciones, exclusiones ni importaciones) dentro de los rangos de fecha bloqueados.
     </div>
-    <a href="{{ url_for('main.bloqueos_vista') }}" class="btn btn-outline-dark btn-sm fw-bold">Reabrir período (solo administrador)</a>
+    <a href="{{ url_for('main.bloqueos_vista') }}" class="btn btn-outline-dark btn-sm fw-bold">Gestionar bloqueos</a>
 </div>
 {% endif %}
 
@@ -36,6 +41,7 @@
     </li>
 </ul>
 
+<!-- Barra de Filtros y Acciones -->
 <form method="GET" action="{{ url_for('main.dashboard') }}" class="card shadow-sm mb-3 p-3 bg-light" id="filterForm">
     <div class="row g-2 align-items-center">
         <div class="col-md-3">
@@ -69,36 +75,37 @@
             </select>
         </div>
         <div class="col-md-3 text-end">
-            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-dark btn-sm" title="Limpiar"><i class="fa-solid fa-rotate-right me-1"></i> Limpiar</a>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-dark btn-sm"><i class="fa-solid fa-rotate-right me-1"></i> Limpiar</a>
         </div>
     </div>
     <div class="row g-2 align-items-center mt-2">
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="input-group input-group-sm">
                 <span class="input-group-text">Desde</span>
                 <input type="date" class="form-control" name="fecha_desde" value="{{ selected_desde }}">
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="input-group input-group-sm">
                 <span class="input-group-text">Hasta</span>
                 <input type="date" class="form-control" name="fecha_hasta" value="{{ selected_hasta }}">
             </div>
         </div>
-        <div class="col-md-6 text-end">
+        <div class="col-md-8 text-end">
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print();"><i class="fa-solid fa-file-pdf text-danger me-1"></i> PDF</button>
-            <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-file-excel me-1"></i> Excel</a>
-            <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-info btn-sm"><i class="fa-solid fa-file-arrow-down me-1"></i> Plantilla</a>
+            <a href="{{ url_for('main.exportar_excel', q=selected_q, cuenta_id=selected_cuenta or '', categoria_id=selected_categoria or '', centro_costo_id=selected_centro or '', fecha_desde=selected_desde, fecha_hasta=selected_hasta) }}" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-file-excel me-1"></i> Exportar Excel</a>
+            <a href="{{ url_for('main.descargar_plantilla') }}" class="btn btn-outline-info btn-sm"><i class="fa-solid fa-file-arrow-down me-1"></i> Descargar plantilla</a>
             <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#modalImportar"><i class="fa-solid fa-file-arrow-up me-1"></i> Importar</button>
             <a href="{{ url_for('main.bloqueos_vista') }}" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-lock me-1"></i> Bloqueos</a>
             <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalTransferencia"><i class="fa-solid fa-right-left me-1"></i> Transferencia</button>
-            <button type="button" class="btn btn-primary btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#modalTransaccion" {% if bloqueos_activos %}disabled title="Período bloqueado"{% endif %}><i class="fa-solid fa-plus me-1"></i> Nueva Transacción</button>
+            <button type="button" class="btn btn-primary btn-sm ms-1" data-bs-toggle="modal" data-bs-target="#modalTransaccion"><i class="fa-solid fa-plus me-1"></i> Nueva Transacción</button>
         </div>
     </div>
 </form>
 
+<!-- Tabla Transacciones (Pág. 6: Monto y Saldo siempre en la moneda de la cuenta) -->
 <div class="card shadow-sm">
-    <div class="card-body p-0">
+    <div class="card-body p-0 table-responsive">
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
                 <tr>
@@ -108,33 +115,50 @@
                     <th>Cuenta</th>
                     <th>Centro de Costo</th>
                     <th>Método</th>
-                    <th>Monto</th>
-                    <th>Saldo Cuenta</th>
-                    <th>Acciones</th>
+                    <th class="text-end">Monto</th>
+                    <th class="text-end">Saldo Cuenta</th>
+                    <th class="text-center">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for t in transacciones %}
+                {% set mon_cta = t.cuenta.moneda if t.cuenta else (t.moneda or 'PYG') %}
+                {% set simb = '₲' if mon_cta == 'PYG' else ('US$' if mon_cta == 'USD' else 'R$') %}
                 <tr>
                     <td>{{ t.fecha.strftime('%d/%m/%Y') if t.fecha else '-' }}</td>
                     <td>
                         <span class="fw-bold">{{ t.descripcion }}</span><br>
                         <small class="text-muted"><i class="fa-solid fa-user me-1"></i>{{ t.cliente.nombre if t.cliente else 'Particular' }}</small>
-                        <br><span class="badge {% if t.tipo == 'Ingreso' %}bg-success{% else %}bg-danger{% endif %}">{{ t.tipo }}</span>
+                        <span class="badge {% if t.tipo == 'Ingreso' %}bg-success{% else %}bg-danger{% endif %} ms-1">{{ t.tipo }}</span>
                     </td>
-                    <td>{{ t.categoria.nombre if t.categoria else '-' }}</td>
+                    <td>
+                        {% if t.categoria %}
+                        <span class="badge bg-light text-dark border">{{ t.categoria.nombre }}</span>
+                        {% else %}-{% endif %}
+                    </td>
                     <td>{{ t.cuenta.nombre if t.cuenta else '-' }}</td>
                     <td>{{ t.centro_costo.nombre if t.centro_costo else '-' }}</td>
                     <td><span class="badge bg-light text-dark border">{{ t.metodo_pago }}</span></td>
-                    <td class="fw-bold {% if t.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
-                        ₲ {{ "{:,.0f}".format(t.monto or 0).replace(',', '.') }}
+                    <td class="text-end fw-bold {% if t.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
+                        {% if mon_cta == 'PYG' %}
+                            ₲ {{ "{:,.0f}".format(t.monto or 0).replace(',', '.') }} <span class="badge bg-secondary-subtle text-dark ms-1">PYG</span>
+                        {% else %}
+                            {{ simb }} {{ "{:,.2f}".format(t.monto or 0) }} <span class="badge bg-secondary-subtle text-dark ms-1">{{ mon_cta }}</span>
+                            {% set eq_val = t.equivalente_gs if (t.equivalente_gs and t.equivalente_gs > 0) else ((t.monto or 0) * (t.cotizacion or 1)) %}
+                            <br><small class="text-muted fw-normal">₲ {{ "{:,.0f}".format(eq_val).replace(',', '.') }} · cotización {{ "{:,.0f}".format(t.cotizacion or 1).replace(',', '.') }}</small>
+                        {% endif %}
                     </td>
-                    <td class="fw-bold {% if (t.saldo_resultante or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        ₲ {{ "{:,.0f}".format(t.saldo_resultante or 0).replace(',', '.') }}
+                    <td class="text-end fw-bold {% if (t.saldo_resultante or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {% if mon_cta == 'PYG' %}
+                            ₲ {{ "{:,.0f}".format(t.saldo_resultante or 0).replace(',', '.') }}
+                        {% else %}
+                            {{ simb }} {{ "{:,.2f}".format(t.saldo_resultante or 0) }}
+                        {% endif %}
                     </td>
-                    <td>
-                        <form action="{{ url_for('main.eliminar_transaccion', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Está seguro de que desea excluir esta transacción? Esta acción no se puede deshacer.');">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir" {% if bloqueos_activos %}disabled{% endif %}><i class="fa-solid fa-trash"></i></button>
+                    <td class="text-center">
+                        {% set msg_confirm = '¿Eliminar esta transacción? Si proviene de un cobro (CxC) o pago (CxP), el título volverá a quedar Pendiente y se revertirá el saldo de la cuenta.' %}
+                        <form action="{{ url_for('main.eliminar_transaccion', id=t.id) }}" method="POST" class="d-inline" onsubmit="return confirm('{{ msg_confirm }}');">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir transacción"><i class="fa-solid fa-trash"></i></button>
                         </form>
                     </td>
                 </tr>
@@ -146,11 +170,11 @@
     </div>
 </div>
 
-<!-- MODAL NUEVA TRANSACCIÓN -->
+<!-- MODAL NUEVA TRANSACCIÓN (Pág. 4: La moneda define las cuentas) -->
 <div class="modal fade" id="modalTransaccion" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ url_for('main.agregar_transaccion') }}" method="POST" onsubmit="limpiarFormatoMoneda()">
+            <form action="{{ url_for('main.agregar_transaccion') }}" method="POST" onsubmit="prepararEnvioNuevaTx()">
                 <div class="modal-header">
                     <h5 class="modal-title">Nueva Transacción</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -160,7 +184,7 @@
                         <label class="form-label fw-bold">Tipo de Transacción</label>
                         <input type="hidden" name="tipo" id="inputTipoTransaccion" value="Ingreso">
                         <div class="btn-group w-100" role="group">
-                            <button type="button" class="btn btn-outline-success active" id="btnIngreso" onclick="setTipoTransaccion('Ingreso')"><i class="fa-solid fa-arrow-trend-up me-1"></i> Ingreso</button>
+                            <button type="button" class="btn btn-success active" id="btnIngreso" onclick="setTipoTransaccion('Ingreso')"><i class="fa-solid fa-arrow-trend-up me-1"></i> Ingreso</button>
                             <button type="button" class="btn btn-outline-danger" id="btnSalida" onclick="setTipoTransaccion('Salida')"><i class="fa-solid fa-arrow-trend-down me-1"></i> Salida</button>
                         </div>
                     </div>
@@ -169,92 +193,138 @@
                         <label class="form-label">Descripción</label>
                         <input type="text" class="form-control" name="descripcion" required placeholder="Ej: Pago de servicios">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto (Gs.)</label>
-                        <input type="text" class="form-control moneda-input" id="inputMontoTransaccionVisual" required placeholder="150.000">
-                        <input type="hidden" name="monto" id="inputMontoTransaccionReal">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Método de Pago</label>
-                        <select class="form-select" name="metodo_pago" required>
-                            <option value="Efectivo">Efectivo</option>
-                            <option value="Transferencia">Transferencia</option>
-                            <option value="POS">POS</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Cuenta Bancaria / Caja</label>
-                        <select class="form-select" name="cuenta_id" required>
-                            {% for c in cuentas %}
-                            <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
-                            {% endfor %}
-                        </select>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Moneda</label>
+                            <select class="form-select" name="moneda" id="selectMonedaTx" onchange="filtrarCuentasPorMonedaTx()" required>
+                                <option value="PYG">PYG (₲)</option>
+                                <option value="USD">USD (US$)</option>
+                                <option value="BRL">BRL (R$)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3" id="divCotizacionTx" style="display:none;">
+                            <label class="form-label fw-bold">Cotización (₲)</label>
+                            <input type="text" class="form-control moneda-input" id="inputCotizacionTxVisual" value="7.500" oninput="actualizarEquivalenteTx()">
+                            <input type="hidden" name="cotizacion" id="inputCotizacionTxReal" value="1">
+                        </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Categoría</label>
-                        <select class="form-select" name="categoria_id">
-                            <option value="">Seleccionar categoría...</option>
-                            {% for cat in categorias %}
-                            <option value="{{ cat.id }}">{{ cat.nombre }} ({{ cat.tipo }})</option>
+                        <label class="form-label fw-bold">Cuenta Bancaria / Caja (solo esta moneda)</label>
+                        <select class="form-select" name="cuenta_id" id="selectCuentaTx" required>
+                            {% for c in cuentas %}
+                            <option value="{{ c.id }}" data-moneda="{{ c.moneda }}">{{ c.nombre }}</option>
                             {% endfor %}
                         </select>
+                        <div id="avisoSinCuentaTx" class="small text-danger mt-1" style="display:none;">
+                            No hay cuentas en esta moneda. <a href="{{ url_for('main.cadastros') }}" class="fw-bold">Ir a Cadastros &gt; Cuentas</a>
+                        </div>
                     </div>
+
                     <div class="mb-3">
-                        <label class="form-label">Centro de Costo</label>
-                        <select class="form-select" name="centro_costo_id">
-                            <option value="">Seleccionar centro...</option>
-                            {% for cc in centros_costo %}
-                            <option value="{{ cc.id }}">{{ cc.nombre }}</option>
-                            {% endfor %}
-                        </select>
+                        <label class="form-label fw-bold" id="labelMontoTx">Monto (₲)</label>
+                        <input type="text" class="form-control" id="inputMontoTransaccionVisual" required placeholder="150.000" oninput="formatearMontoSegunMonedaTx()">
+                        <input type="hidden" name="monto" id="inputMontoTransaccionReal">
+                        <small class="text-muted" id="textoEquivalenteTx" style="display:none;"></small>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha</label>
-                        <input type="date" class="form-control" name="fecha" required>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Método de Pago</label>
+                            <select class="form-select" name="metodo_pago" required>
+                                <option value="Efectivo">Efectivo</option>
+                                <option value="Transferencia">Transferencia</option>
+                                <option value="Tarjeta">Tarjeta</option>
+                                <option value="POS">POS</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Fecha</label>
+                            <input type="date" class="form-control" name="fecha" value="{{ hoy_str }}" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Categoría</label>
+                            <select class="form-select" name="categoria_id">
+                                <option value="">Seleccionar categoría...</option>
+                                {% for cat in categorias %}
+                                <option value="{{ cat.id }}">{{ cat.nombre }} ({{ cat.tipo }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Centro de Costo</label>
+                            <select class="form-select" name="centro_costo_id">
+                                <option value="">Seleccionar centro...</option>
+                                {% for cc in centros_costo %}
+                                <option value="{{ cc.id }}">{{ cc.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Guardar Transacción</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnGuardarTx">Guardar Transacción</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- MODAL TRANSFERENCIA ENTRE CUENTAS -->
+<!-- MODAL TRANSFERENCIA ENTRE CUENTAS (Pág. 5: Con cambio de moneda y cálculo de 3 valores) -->
 <div class="modal fade" id="modalTransferencia" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ url_for('main.transferir_cuentas') }}" method="POST" onsubmit="limpiarFormatoTransferencia()">
+            <form action="{{ url_for('main.transferir_cuentas') }}" method="POST">
                 <div class="modal-header">
                     <h5 class="modal-title">Transferencia entre Cuentas</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Cuenta Origen</label>
-                        <select class="form-select" name="cuenta_origen_id" required>
+                        <label class="form-label fw-bold">Cuenta Origen</label>
+                        <select class="form-select" name="cuenta_origen_id" id="transfOrigen" onchange="actualizarMonedasTransferencia()" required>
                             {% for c in cuentas %}
-                            <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
+                            <option value="{{ c.id }}" data-moneda="{{ c.moneda }}">{{ c.nombre }} ({{ c.moneda }})</option>
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold" id="labelValorSale">Valor que sale</label>
+                            <input type="number" step="any" class="form-control" name="monto_salida" id="transfValorSale" oninput="calcularTransferencia('sale')" required placeholder="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold" id="labelCambioTransf">Cambio</label>
+                            <input type="number" step="any" class="form-control" name="cotizacion" id="transfCambio" value="1" oninput="calcularTransferencia('cambio')" required>
+                        </div>
+                    </div>
                     <div class="mb-3">
-                        <label class="form-label">Cuenta Destino</label>
-                        <select class="form-select" name="cuenta_destino_id" required>
+                        <label class="form-label fw-bold">Cuenta Destino</label>
+                        <select class="form-select" name="cuenta_destino_id" id="transfDestino" onchange="actualizarMonedasTransferencia()" required>
                             {% for c in cuentas %}
-                            <option value="{{ c.id }}">{{ c.nombre }} ({{ c.moneda }})</option>
+                            <option value="{{ c.id }}" data-moneda="{{ c.moneda }}" {% if loop.index == 2 %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto a Transferir</label>
-                        <input type="text" class="form-control moneda-input" id="inputMontoTransfVisual" required placeholder="500.000">
-                        <input type="hidden" name="monto" id="inputMontoTransfReal">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold" id="labelValorEntra">Valor que entra</label>
+                            <input type="number" step="any" class="form-control" name="monto_entrada" id="transfValorEntra" oninput="calcularTransferencia('entra')" required placeholder="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Fecha</label>
+                            <input type="date" class="form-control" name="fecha" value="{{ hoy_str }}" required>
+                        </div>
                     </div>
+                    <small class="text-muted d-block">Escriba dos de los tres valores (sale, cambio, entra): el sistema calcula el tercero automáticamente.</small>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Realizar Transferencia</button>
                 </div>
             </form>
@@ -262,44 +332,190 @@
     </div>
 </div>
 
+<!-- MODAL IMPORTAR TRANSACCIONES (Pág. 9) -->
+<div class="modal fade" id="modalImportar" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="{{ url_for('main.importar_transacciones') }}" method="POST" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">Importar transacciones</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">1. Descargue la plantilla &middot; 2. Complete y suba el archivo &middot; 3. Revise y confirme</p>
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-2 bg-light rounded border">
+                        <span>¿Aún no tiene el modelo de importación?</span>
+                        <a href="{{ url_for('main.descargar_plantilla') }}" class="btn btn-sm btn-outline-info fw-bold"><i class="fa-solid fa-file-arrow-down me-1"></i> Descargar plantilla</a>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Seleccionar archivo (.csv / .xlsx)</label>
+                        <input type="file" class="form-control" name="archivo" accept=".csv,.txt" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Importar filas válidas</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
-function formatearConPuntos(input) {
-    let valorLimpio = input.value.replace(/\D/g, '');
-    if (valorLimpio === '') {
-        input.value = '';
+function setTipoTransaccion(tipo) {
+    document.getElementById('inputTipoTransaccion').value = tipo;
+    let btnIngreso = document.getElementById('btnIngreso');
+    let btnSalida = document.getElementById('btnSalida');
+    if (tipo === 'Ingreso') {
+        btnIngreso.className = 'btn btn-success active';
+        btnSalida.className = 'btn btn-outline-danger';
+    } else {
+        btnIngreso.className = 'btn btn-outline-success';
+        btnSalida.className = 'btn btn-danger active';
+    }
+}
+
+function filtrarCuentasPorMonedaTx() {
+    const moneda = document.getElementById('selectMonedaTx').value;
+    const selectCuenta = document.getElementById('selectCuentaTx');
+    const divCot = document.getElementById('divCotizacionTx');
+    const labelMonto = document.getElementById('labelMontoTx');
+    const aviso = document.getElementById('avisoSinCuentaTx');
+    const btnGuardar = document.getElementById('btnGuardarTx');
+
+    const simbolos = {'PYG': '₲', 'USD': 'US$', 'BRL': 'R$'};
+    labelMonto.textContent = `Monto (${simbolos[moneda] || moneda})`;
+
+    if (moneda === 'PYG') {
+        divCot.style.display = 'none';
+        document.getElementById('inputCotizacionTxReal').value = '1';
+        document.getElementById('textoEquivalenteTx').style.display = 'none';
+    } else {
+        divCot.style.display = 'block';
+    }
+
+    let primeraVisible = null;
+    let totalVisibles = 0;
+    Array.from(selectCuenta.options).forEach(opt => {
+        if (opt.getAttribute('data-moneda') === moneda) {
+            opt.hidden = false;
+            opt.disabled = false;
+            totalVisibles++;
+            if (!primeraVisible) primeraVisible = opt.value;
+        } else {
+            opt.hidden = true;
+            opt.disabled = true;
+        }
+    });
+
+    if (totalVisibles > 0) {
+        selectCuenta.value = primeraVisible;
+        aviso.style.display = 'none';
+        btnGuardar.disabled = false;
+    } else {
+        selectCuenta.value = '';
+        aviso.style.display = 'block';
+        btnGuardar.disabled = true;
+    }
+    actualizarEquivalenteTx();
+}
+
+function formatearMontoSegunMonedaTx() {
+    const moneda = document.getElementById('selectMonedaTx').value;
+    const input = document.getElementById('inputMontoTransaccionVisual');
+    if (moneda === 'PYG') {
+        let limpio = input.value.replace(/\D/g, '');
+        input.value = limpio ? parseInt(limpio, 10).toLocaleString('es-PY') : '';
+        document.getElementById('inputMontoTransaccionReal').value = limpio || '0';
+    } else {
+        document.getElementById('inputMontoTransaccionReal').value = input.value.replace(',', '.');
+    }
+    actualizarEquivalenteTx();
+}
+
+function actualizarEquivalenteTx() {
+    const moneda = document.getElementById('selectMonedaTx').value;
+    const textoEq = document.getElementById('textoEquivalenteTx');
+    if (moneda === 'PYG') {
+        textoEq.style.display = 'none';
         return;
     }
-    let numero = parseInt(valorLimpio, 10);
-    input.value = numero.toLocaleString('es-PY');
-
-    if(input.id === 'inputMontoTransaccionVisual') {
-        document.getElementById('inputMontoTransaccionReal').value = numero;
-    } else if(input.id === 'inputMontoTransfVisual') {
-        document.getElementById('inputMontoTransfReal').value = numero;
-    }
+    let cotStr = document.getElementById('inputCotizacionTxVisual').value.replace(/\./g, '').replace(',', '.');
+    let cot = parseFloat(cotStr) || 1;
+    document.getElementById('inputCotizacionTxReal').value = cot;
+    let monto = parseFloat(document.getElementById('inputMontoTransaccionVisual').value.replace(/\./g, '').replace(',', '.')) || 0;
+    let eq = Math.round(monto * cot);
+    textoEq.style.display = 'block';
+    textoEq.textContent = `Equivalente en Gs.: ₲ ${eq.toLocaleString('es-PY')}`;
 }
 
-document.addEventListener('input', function(e) {
-    if (e.target.classList.contains('moneda-input') || e.target.classList.contains('costo-input')) {
-        formatearConPuntos(e.target);
-    }
-});
-
-function limpiarFormatoMoneda() {
-    let visual = document.getElementById('inputMontoTransaccionVisual');
-    if(visual) {
-        document.getElementById('inputMontoTransaccionReal').value = visual.value.replace(/\./g, '').replace(/,/g, '');
-    }
+function prepararEnvioNuevaTx() {
+    formatearMontoSegunMonedaTx();
 }
 
-function limpiarFormatoTransferencia() {
-    let visual = document.getElementById('inputMontoTransfVisual');
-    if(visual) {
-        document.getElementById('inputMontoTransfReal').value = visual.value.replace(/\./g, '').replace(/,/g, '');
+function actualizarMonedasTransferencia() {
+    const selOrig = document.getElementById('transfOrigen');
+    const selDest = document.getElementById('transfDestino');
+    if (!selOrig || !selDest) return;
+    const monOrig = selOrig.options[selOrig.selectedIndex]?.getAttribute('data-moneda') || 'PYG';
+    const monDest = selDest.options[selDest.selectedIndex]?.getAttribute('data-moneda') || 'PYG';
+    const inputCambio = document.getElementById('transfCambio');
+
+    document.getElementById('labelValorSale').textContent = `Valor que sale (${monOrig})`;
+    document.getElementById('labelValorEntra').textContent = `Valor que entra (${monDest})`;
+
+    if (monOrig === monDest) {
+        inputCambio.value = 1;
+        inputCambio.readOnly = true;
+    } else {
+        inputCambio.readOnly = false;
+        if (parseFloat(inputCambio.value) === 1) inputCambio.value = 7500;
+    }
+    calcularTransferencia('sale');
+}
+
+function calcularTransferencia(origenCambio) {
+    const selOrig = document.getElementById('transfOrigen');
+    const selDest = document.getElementById('transfDestino');
+    const monOrig = selOrig.options[selOrig.selectedIndex]?.getAttribute('data-moneda') || 'PYG';
+    const monDest = selDest.options[selDest.selectedIndex]?.getAttribute('data-moneda') || 'PYG';
+
+    const saleEl = document.getElementById('transfValorSale');
+    const cambioEl = document.getElementById('transfCambio');
+    const entraEl = document.getElementById('transfValorEntra');
+
+    let sale = parseFloat(saleEl.value) || 0;
+    let cambio = parseFloat(cambioEl.value) || 1;
+    let entra = parseFloat(entraEl.value) || 0;
+
+    if (monOrig === monDest) {
+        entraEl.value = sale;
+        return;
+    }
+
+    if (origenCambio === 'sale' || origenCambio === 'cambio') {
+        if (monDest === 'PYG') {
+            entraEl.value = Math.round(sale * cambio);
+        } else if (monOrig === 'PYG') {
+            entraEl.value = cambio > 0 ? (sale / cambio).toFixed(2) : 0;
+        } else {
+            entraEl.value = (sale * cambio).toFixed(2);
+        }
+    } else if (origenCambio === 'entra' && sale > 0) {
+        if (monDest === 'PYG') {
+            cambioEl.value = (entra / sale).toFixed(2);
+        } else if (monOrig === 'PYG') {
+            cambioEl.value = entra > 0 ? (sale / entra).toFixed(2) : 1;
+        } else {
+            cambioEl.value = (entra / sale).toFixed(4);
+        }
     }
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+    filtrarCuentasPorMonedaTx();
+    actualizarMonedasTransferencia();
+
     const form = document.getElementById('filterForm');
     if (form) {
         form.querySelectorAll('select, input[type="date"]').forEach(function(el) {
@@ -315,18 +531,5 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 });
-
-function setTipoTransaccion(tipo) {
-    document.getElementById('inputTipoTransaccion').value = tipo;
-    let btnIngreso = document.getElementById('btnIngreso');
-    let btnSalida = document.getElementById('btnSalida');
-    if (tipo === 'Ingreso') {
-        btnIngreso.className = 'btn btn-success active';
-        btnSalida.className = 'btn btn-outline-danger';
-    } else {
-        btnIngreso.className = 'btn btn-outline-success';
-        btnSalida.className = 'btn btn-danger active';
-    }
-}
 </script>
 {% endblock %}
