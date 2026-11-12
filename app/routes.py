@@ -2366,6 +2366,14 @@ def flujo_proyectado():
     distribucion_costos = sum(((v.costo_servicios or 0) * 0.25) for v in ventas_activas)
     saldo_proyectado = total_cxc - (total_cxp + distribucion_costos)
 
+    return render_template('flujo_proyectado.html', 
+                           cxc_pendientes=cxc_pendientes, 
+                           cxp_pendientes=cxp_pendientes, 
+                           total_cxc=total_cxc, 
+                           total_cxp=total_cxp,
+                           distribucion_costos=distribucion_costos,
+                           saldo_proyectado=saldo_proyectado)
+
 @bp.route('/reparar-datos-historicos')
 @login_required
 def reparar_datos_historicos():
@@ -2555,10 +2563,4 @@ def previsualizar_importacion():
     except Exception as e:
         return jsonify({'ok': False, 'error': f'Error al leer el archivo: {str(e)}'})
     
-    return render_template('flujo_proyectado.html', 
-                           cxc_pendientes=cxc_pendientes, 
-                           cxp_pendientes=cxp_pendientes, 
-                           total_cxc=total_cxc, 
-                           total_cxp=total_cxp,
-                           distribucion_costos=distribucion_costos,
-                           saldo_proyectado=saldo_proyectado)
+
