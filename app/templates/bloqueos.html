@@ -3,39 +3,42 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h2>Bloqueos de Períodos y Cuentas</h2>
-        <p class="text-muted mb-0">Control de cierres mensuales y restricciones de edición según manual operativo</p>
+        <p class="text-muted mb-0">Control de cierres por rango de fechas y auditoría de alteraciones</p>
     </div>
     <div>
-        <button class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#modalBloquearPeriodo"><i class="fa-solid fa-lock me-1"></i> Bloquear período</button>
-        <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalDesbloquearTodo"><i class="fa-solid fa-unlock-alt me-1"></i> Desbloquear todo</button>
+        <button class="btn btn-danger fw-bold" data-bs-toggle="modal" data-bs-target="#modalBloquearPeriodo">
+            <i class="fa-solid fa-lock me-1"></i> Bloquear período
+        </button>
     </div>
 </div>
 
-<!-- Bloqueos Activos -->
+<!-- Bloqueos Activos (Pág. 11: Desde, Hasta, Cuenta, Por, Estado, Acciones) -->
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-light fw-bold">Bloqueos activos</div>
-    <div class="card-body p-0">
+    <div class="card-body p-0 table-responsive">
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>Período</th>
+                    <th>Desde</th>
+                    <th>Hasta</th>
                     <th>Cuenta</th>
-                    <th>Bloqueado el</th>
                     <th>Por</th>
                     <th>Estado</th>
-                    <th>Acciones</th>
+                    <th class="text-end">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for b in bloqueos if b.estado == 'Bloqueado' %}
                 <tr>
-                    <td class="fw-bold">{{ b.periodo }}</td>
+                    <td class="fw-bold">{{ b.fecha_desde.strftime('%d/%m/%Y') if b.fecha_desde else b.periodo.split('-')[0] }}</td>
+                    <td class="fw-bold">{{ b.fecha_hasta.strftime('%d/%m/%Y') if b.fecha_hasta else (b.periodo.split('-')[1] if '-' in b.periodo else b.periodo) }}</td>
                     <td>{{ b.cuenta.nombre if b.cuenta else 'Todas las cuentas' }}</td>
-                    <td>{{ b.fecha_bloqueo.strftime('%d/%m/%Y %H:%M') }}</td>
                     <td>{{ b.usuario }}</td>
                     <td><span class="badge bg-danger">Bloqueado</span></td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalDesbloquear{{ b.id }}">Desbloquear</button>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#modalDesbloquear{{ b.id }}">
+                            <i class="fa-solid fa-unlock me-1"></i> Desbloquear
+                        </button>
                     </td>
                 </tr>
 
@@ -49,20 +52,20 @@
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <div class="modal-body">
-                                    <p class="text-muted">¿Está seguro de que desea desbloquear este período?</p>
-                                    <ul class="list-unstyled small mb-3">
-                                        <li><strong>Período:</strong> {{ b.periodo }}</li>
+                                    <p class="text-muted">¿Está seguro de que desea liberar este rango bloqueado?</p>
+                                    <ul class="list-unstyled small mb-3 bg-light p-2 rounded border">
+                                        <li><strong>Rango (Desde - Hasta):</strong> {{ b.periodo }}</li>
                                         <li><strong>Cuenta:</strong> {{ b.cuenta.nombre if b.cuenta else 'Todas las cuentas' }}</li>
-                                        <li><strong>Bloqueado el:</strong> {{ b.fecha_bloqueo.strftime('%d/%m/%Y') }} por {{ b.usuario }}</li>
+                                        <li><strong>Bloqueado el:</strong> {{ b.fecha_bloqueo.strftime('%d/%m/%Y %H:%M') }} por {{ b.usuario }}</li>
                                     </ul>
                                     <div class="mb-3">
-                                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
-                                        <textarea class="form-control" name="motivo" rows="2" required placeholder="Ej: Corrección de una transacción de octubre"></textarea>
+                                        <label class="form-label fw-bold">Motivo de reapertura (obligatorio)</label>
+                                        <textarea class="form-control" name="motivo" rows="2" required placeholder="Ej: Corrección de una transacción"></textarea>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" required id="checkEntendido{{ b.id }}">
                                         <label class="form-check-label small" for="checkEntendido{{ b.id }}">
-                                            Entiendo que, mientras esté desbloqueado, se pueden alterar movimientos de este período.
+                                            Entiendo que, al desbloquear, se podrán alterar movimientos dentro de estas fechas.
                                         </label>
                                     </div>
                                 </div>
@@ -75,43 +78,64 @@
                     </div>
                 </div>
                 {% else %}
-                <tr><td colspan="6" class="text-center py-3 text-muted">No hay bloqueos activos en este momento.</td></tr>
+                <tr><td colspan="6" class="text-center py-4 text-muted">No hay bloqueos activos en este momento.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- Historial de Bloqueos -->
+<!-- Historial de Auditoría (Pág. 11) -->
 <div class="card shadow-sm">
-    <div class="card-header bg-light fw-bold">Historial de auditoría de bloqueos y desbloqueos</div>
-    <div class="card-body p-0">
-        <table class="table table-striped mb-0 small">
-            <thead>
+    <div class="card-header bg-light fw-bold">Historial de auditoría</div>
+    <div class="card-body p-0 table-responsive">
+        <table class="table table-striped mb-0 small align-middle">
+            <thead class="table-light">
                 <tr>
                     <th>Fecha y hora</th>
                     <th>Usuario</th>
                     <th>Acción</th>
-                    <th>Período / cuenta</th>
+                    <th>Período (Desde - Hasta)</th>
+                    <th>Cuenta</th>
                     <th>Motivo / Estado</th>
                 </tr>
             </thead>
             <tbody>
-                {% for b in bloqueos %}
-                <tr>
-                    <td>{{ b.fecha_bloqueo.strftime('%d/%m/%Y %H:%M') }}</td>
-                    <td>{{ b.usuario }}</td>
-                    <td><span class="badge {% if b.estado == 'Bloqueado' %}bg-danger{% else %}bg-secondary{% endif %}">{{ b.estado }}</span></td>
-                    <td>{{ b.periodo }} ({{ b.cuenta.nombre if b.cuenta else 'Todas' }})</td>
-                    <td>{{ b.motivo_desbloqueo or 'Cierre estándar' }}</td>
-                </tr>
-                {% endfor %}
+                {% if historial %}
+                    {% for h in historial %}
+                    <tr>
+                        <td>{{ h.fecha_hora.strftime('%d/%m/%Y %H:%M') if h.fecha_hora else '-' }}</td>
+                        <td>{{ h.usuario }}</td>
+                        <td>
+                            <span class="badge {% if h.accion == 'Bloqueo' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                {{ h.accion }}
+                            </span>
+                        </td>
+                        <td class="fw-bold">{{ h.rango }}</td>
+                        <td>{{ h.cuenta_nombre }}</td>
+                        <td>{{ h.motivo or 'Cierre estándar' }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    {% for b in bloqueos %}
+                    <tr>
+                        <td>{{ b.fecha_bloqueo.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ b.usuario }}</td>
+                        <td><span class="badge {% if b.estado == 'Bloqueado' %}bg-danger{% else %}bg-secondary{% endif %}">{{ b.estado }}</span></td>
+                        <td class="fw-bold">{{ b.periodo }}</td>
+                        <td>{{ b.cuenta.nombre if b.cuenta else 'Todas las cuentas' }}</td>
+                        <td>{{ b.motivo_desbloqueo or b.motivo or 'Cierre estándar' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center py-3 text-muted">Sin registros de auditoría.</td></tr>
+                    {% endfor %}
+                {% endif %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- Modal Bloquear Período -->
+<!-- Modal Bloquear Período (Pág. 10: Fecha Desde y Hasta + Atajo mes completo) -->
 <div class="modal fade" id="modalBloquearPeriodo" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -121,10 +145,23 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Período a bloquear</label>
-                        <input type="text" class="form-control" name="periodo" value="Octubre 2026" required>
+                    <label class="form-label fw-bold mb-1">Período a bloquear</label>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted mb-1">Desde</label>
+                            <input type="date" class="form-control" name="fecha_desde" id="bloqDesde" onchange="actualizarAvisoBloqueo()" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted mb-1">Hasta</label>
+                            <input type="date" class="form-control" name="fecha_hasta" id="bloqHasta" onchange="actualizarAvisoBloqueo()" required>
+                        </div>
                     </div>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="aplicarAtajoMesCompleto()">
+                            <i class="fa-regular fa-calendar-check me-1"></i> Atajo: mes completo (rellena primer y último día del mes)
+                        </button>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold">Cuentas a bloquear</label>
                         <select class="form-select" name="cuenta_id">
@@ -134,11 +171,19 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="alert alert-warning small py-2">
-                        <i class="fa-solid fa-triangle-exclamation me-1"></i> No se podrá crear, editar, eliminar ni importar transacciones, ventas o cobros con fecha de este período.
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Motivo (opcional)</label>
+                        <input type="text" class="form-control" name="motivo" value="Cierre estándar" placeholder="Ej: Cierre estándar">
                     </div>
+
+                    <div class="alert alert-warning small py-2 mb-3">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                        <span id="textoAvisoRango">No se podrá crear, editar, eliminar ni importar transacciones, ventas o cobros con fecha dentro de este rango.</span>
+                    </div>
+
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" required id="checkEntendidoBloq">
+                        <input class="form-check-input" type="checkbox" required id="checkEntendidoBloq" onchange="document.getElementById('btnSubmitBloq').disabled = !this.checked;">
                         <label class="form-check-label small" for="checkEntendidoBloq">
                             Entiendo que no podré hacer alteraciones en este período.
                         </label>
@@ -146,41 +191,42 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-danger fw-bold">Bloquear período</button>
+                    <button type="submit" class="btn btn-danger fw-bold" id="btnSubmitBloq" disabled>Bloquear período</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Modal Desbloquear Todo -->
-<div class="modal fade" id="modalDesbloquearTodo" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('main.desbloquear_todo') }}" method="POST">
-                <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-unlock me-1"></i> Desbloquear todo</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-danger fw-bold">¿Está seguro de que desea desbloquear todos los bloqueos?</p>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
-                        <textarea class="form-control" name="motivo" rows="2" required placeholder="Motivo de la apertura general..."></textarea>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" required id="checkEntendidoTodo">
-                        <label class="form-check-label small" for="checkEntendidoTodo">
-                            Entiendo que se liberarán todos los períodos y cuentas de forma simultánea.
-                        </label>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-warning fw-bold">Sí, desbloquear todo</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<script>
+function aplicarAtajoMesCompleto() {
+    const desdeInput = document.getElementById('bloqDesde');
+    const hastaInput = document.getElementById('bloqHasta');
+    let baseDate = desdeInput.value ? new Date(desdeInput.value + 'T00:00:00') : new Date();
+    let year = baseDate.getFullYear();
+    let month = baseDate.getMonth();
+    let firstDay = new Date(year, month, 1);
+    let lastDay = new Date(year, month + 1, 0);
+
+    const fmt = d => d.toISOString().split('T')[0];
+    desdeInput.value = fmt(firstDay);
+    hastaInput.value = fmt(lastDay);
+    actualizarAvisoBloqueo();
+}
+
+function actualizarAvisoBloqueo() {
+    const d = document.getElementById('bloqDesde').value;
+    const h = document.getElementById('bloqHasta').value;
+    const span = document.getElementById('textoAvisoRango');
+    if (d && h) {
+        const fd = d.split('-').reverse().join('/');
+        const fh = h.split('-').reverse().join('/');
+        span.textContent = `No se podrá crear, editar, eliminar ni importar transacciones, ventas o cobros con fecha entre ${fd} y ${fh}.`;
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    aplicarAtajoMesCompleto();
+});
+</script>
 {% endblock %}
