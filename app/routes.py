@@ -10,7 +10,10 @@ from datetime import datetime, time, date
 import calendar
 import csv
 import traceback
-from io import StringIO
+from io import StringIO, BytesIO
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.datavalidation import DataValidation
 
 bp = Blueprint('main', __name__)
 
@@ -157,7 +160,6 @@ def recalcular_venta(venta):
     else:
         venta.estado = 'Pendiente'
 
-    # Sincronizar tabla auxiliar CuotaVenta si existe
     for cv in venta.cuotas:
         match = next((c for c in cuotas_cxc if c.numero_cuota_str == cv.numero_cuota), None)
         if match:
@@ -207,6 +209,39 @@ def recalcular_estado_cxp(cxp):
         cxp.cuenta_nombre = ultima_cuenta.nombre
     if ultimo_metodo and cxp.pagado > 0:
         cxp.metodo_pago = ultimo_metodo
+
+def _autoajustar_columnas_xlsx(ws):
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or '')) for cell in col), default=10)
+        col_letter = col[0].column_letter
+        ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 45)
+
+def _leer_filas_archivo_importacion(archivo):
+    """Lee tanto archivos .xlsx (openpyxl) como .csv y devuelve la lista de filas."""
+    nombre = (archivo.filename or '').lower()
+    raw = archivo.read()
+    if nombre.endswith('.xlsx'):
+        wb = openpyxl.load_workbook(BytesIO(raw), data_only=True)
+        ws = wb['Transacciones'] if 'Transacciones' in wb.sheetnames else wb.active
+        filas = []
+        for row in ws.iter_rows(values_only=True):
+            fila_str = []
+            for val in row:
+                if isinstance(val, (datetime, date)):
+                    fila_str.append(val.strftime('%d/%m/%Y'))
+                elif val is None:
+                    fila_str.append('')
+                else:
+                    fila_str.append(str(val).strip())
+            filas.append(fila_str)
+        return filas
+    else:
+        contenido = raw.decode('utf-8-sig', errors='ignore')
+        lineas = [l for l in contenido.splitlines() if l.strip()]
+        if not lineas:
+            return []
+        delim = ';' if ';' in lineas[0] else ','
+        return list(csv.reader(StringIO(contenido), delimiter=delim))
 
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -358,7 +393,6 @@ def dashboard():
         if current_user.username.lower() == 'recepcion':
             return redirect(url_for('main.ventas_vista'))
 
-        # Autovincular categorías de planes en transacciones de cobro antiguas que quedaron con '-'
         txs_sin_cat = Transaccion.query.filter(Transaccion.categoria_id.is_(None)).all()
         hubo_cambio_cat = False
         for t in txs_sin_cat:
@@ -408,7 +442,6 @@ def dashboard():
         todas_cuentas = Cuenta.query.all()
         saldos = {'PYG': 0.0, 'USD': 0.0, 'BRL': 0.0}
         
-        # Calcular saldo por cuenta siempre en la moneda de la cuenta (sin multiplicar por cotización)
         saldos_acumulados = {}
         for c in todas_cuentas:
             saldos_acumulados[c.id] = c.saldo_inicial if c.saldo_inicial is not None else 0.0
@@ -480,7 +513,6 @@ def agregar_transaccion():
         return redirect(url_for('main.dashboard'))
 
     cuenta = Cuenta.query.get_or_404(cta_id)
-    # Validación de servidor: la moneda informada debe coincidir con la moneda de la cuenta (Pág. 4)
     if moneda_form and cuenta.moneda != moneda_form:
         flash(f'La cuenta "{cuenta.nombre}" es en {cuenta.moneda}, no coincide con la moneda seleccionada ({moneda_form}).', 'danger')
         return redirect(url_for('main.dashboard'))
@@ -555,7 +587,6 @@ def eliminar_transaccion(id):
     cxp_id = t.cxp_id
     par_id = t.transferencia_par_id
 
-    # Si no tenía cxc_id explícito pero era un cobro antiguo con "(Venta #X)", localizar la cuota
     if not cxc_id and t.descripcion and 'Cuota ' in t.descripcion and '(Venta #' in t.descripcion:
         try:
             concepto_buscado = t.descripcion.replace('Cobro avanzado: ', '').strip()
@@ -671,7 +702,7 @@ def transferir_cuentas():
 @bp.route('/exportar-excel')
 @login_required
 def exportar_excel():
-    """Pág. 6 y 8: Exporta las transacciones filtradas con Moneda, Monto, Cotización, Equivalente en Gs. y Saldo Cuenta."""
+    """Pág. 6 y 8: Exporta las transacciones filtradas en .xlsx con Moneda, Monto, Cotización, Equivalente en Gs. y Saldo Cuenta."""
     if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
 
@@ -682,7 +713,6 @@ def exportar_excel():
     fecha_desde_str = request.args.get('fecha_desde', '')
     fecha_hasta_str = request.args.get('fecha_hasta', '')
 
-    # Calcular saldos resultantes cronológicos
     saldos_acumulados = {c.id: (c.saldo_inicial or 0.0) for c in Cuenta.query.all()}
     for t_cron in Transaccion.query.order_by(Transaccion.fecha.asc(), Transaccion.id.asc()).all():
         if t_cron.cuenta_id in saldos_acumulados:
@@ -711,14 +741,20 @@ def exportar_excel():
 
     transacciones = query.order_by(Transaccion.fecha.desc(), Transaccion.id.desc()).all()
 
-    si = StringIO()
-    cw = csv.writer(si, delimiter=';')
-    cw.writerow(['Fecha', 'Tipo', 'Descripción', 'Paciente/Cliente', 'Categoría', 'Cuenta', 'Centro de Costo', 'Método', 'Moneda', 'Monto', 'Cotización', 'Equivalente en Gs.', 'Saldo Cuenta'])
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Transacciones"
+    headers = ['Fecha', 'Tipo', 'Descripción', 'Paciente/Cliente', 'Categoría', 'Cuenta', 'Centro de Costo', 'Método', 'Moneda', 'Monto', 'Cotización', 'Equivalente en Gs.', 'Saldo Cuenta']
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+
     for t in transacciones:
         mon = t.cuenta.moneda if t.cuenta else (t.moneda or 'PYG')
         cot = t.cotizacion or 1.0
         eq_gs = t.equivalente_gs if (t.equivalente_gs and t.equivalente_gs > 0) else (t.monto if mon == 'PYG' else t.monto * cot)
-        cw.writerow([
+        ws.append([
             t.fecha.strftime('%d/%m/%Y') if t.fecha else '',
             t.tipo,
             t.descripcion,
@@ -728,51 +764,257 @@ def exportar_excel():
             t.centro_costo.nombre if t.centro_costo else '-',
             t.metodo_pago,
             mon,
-            t.monto,
-            cot,
+            round(t.monto or 0, 2),
+            round(cot, 2),
             round(eq_gs, 0),
-            getattr(t, 'saldo_resultante', 0.0)
+            round(getattr(t, 'saldo_resultante', 0.0), 2)
         ])
-    output = si.getvalue().encode('utf-8-sig')
+
+    for row in ws.iter_rows(min_row=2, max_col=13):
+        mon_fila = row[8].value
+        fmt_mon = '#,##0' if mon_fila == 'PYG' else '#,##0.00'
+        row[9].number_format = fmt_mon
+        row[10].number_format = '#,##0'
+        row[11].number_format = '#,##0'
+        row[12].number_format = fmt_mon
+
+    _autoajustar_columnas_xlsx(ws)
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
     fecha_archivo = date.today().strftime('%Y-%m-%d')
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition": f"attachment;filename=transacciones_{fecha_archivo}.csv"})
+    return Response(out.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment;filename=transacciones_{fecha_archivo}.xlsx"})
 
 @bp.route('/descargar-plantilla')
 @login_required
 def descargar_plantilla():
-    """Pág. 8: Descarga el modelo vacío con encabezados y 1 fila de ejemplo para importar."""
-    si = StringIO()
-    cw = csv.writer(si, delimiter=';')
-    cw.writerow(['Fecha', 'Tipo', 'Descripción', 'Paciente/Proveedor', 'Categoría', 'Cuenta', 'Centro de Costo', 'Método', 'Monto', 'Cotización'])
-    cw.writerow(['04/11/2026', 'Ingreso', 'Consulta particular', 'María Giménez', 'Consultas Médicas', 'Caja Guaranies', 'ADMINISTRATIVO', 'Efectivo', '350000', '1'])
-    output = si.getvalue().encode('utf-8-sig')
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=plantilla_transacciones.csv"})
+    """Pág. 8: Descarga plantilla_transacciones.xlsx con hojas Transacciones, Listas (desplegables) e Instrucciones."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Transacciones"
+    headers = ['Fecha', 'Tipo', 'Descripción', 'Paciente/Proveedor', 'Categoría', 'Cuenta', 'Centro de Costo', 'Método', 'Monto', 'Cotización']
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+
+    cta_ejemplo = Cuenta.query.first()
+    cat_ejemplo = Categoria.query.first()
+    cc_ejemplo = CentroCosto.query.first()
+    ws.append([
+        '04/11/2026', 'Ingreso', 'Consulta particular', 'María Giménez',
+        cat_ejemplo.nombre if cat_ejemplo else 'Consultas Médicas',
+        cta_ejemplo.nombre if cta_ejemplo else 'Caja Guaranies',
+        cc_ejemplo.nombre if cc_ejemplo else 'ADMINISTRATIVO',
+        'Efectivo', 350000, 1
+    ])
+
+    ws_listas = wb.create_sheet("Listas")
+    ws_listas.append(['Cuentas', 'Moneda Cuenta', 'Categorías', 'Centros de Costo', 'Métodos', 'Tipos'])
+    for cell in ws_listas[1]:
+        cell.font = Font(bold=True)
+
+    cuentas_act = Cuenta.query.filter((Cuenta.activo == True) | (Cuenta.activo.is_(None))).all()
+    cats_act = Categoria.query.filter((Categoria.activo == True) | (Categoria.activo.is_(None))).all()
+    ccs_act = CentroCosto.query.filter((CentroCosto.activo == True) | (CentroCosto.activo.is_(None))).all()
+    metodos = ['Efectivo', 'Transferencia', 'Tarjeta', 'POS', 'PIX']
+    tipos = ['Ingreso', 'Salida']
+
+    max_rows = max(len(cuentas_act), len(cats_act), len(ccs_act), len(metodos), len(tipos), 1)
+    for i in range(max_rows):
+        ws_listas.append([
+            cuentas_act[i].nombre if i < len(cuentas_act) else '',
+            cuentas_act[i].moneda if i < len(cuentas_act) else '',
+            cats_act[i].nombre if i < len(cats_act) else '',
+            ccs_act[i].nombre if i < len(ccs_act) else '',
+            metodos[i] if i < len(metodos) else '',
+            tipos[i] if i < len(tipos) else ''
+        ])
+
+    dv_tipo = DataValidation(type="list", formula1='"Ingreso,Salida"', allow_blank=True)
+    ws.add_data_validation(dv_tipo)
+    dv_tipo.add("B2:B1000")
+
+    dv_metodo = DataValidation(type="list", formula1='"Efectivo,Transferencia,Tarjeta,POS,PIX"', allow_blank=True)
+    ws.add_data_validation(dv_metodo)
+    dv_metodo.add("H2:H1000")
+
+    if len(cats_act) > 0:
+        dv_cat = DataValidation(type="list", formula1=f"Listas!$C$2:$C${len(cats_act)+1}", allow_blank=True)
+        ws.add_data_validation(dv_cat)
+        dv_cat.add("E2:E1000")
+    if len(cuentas_act) > 0:
+        dv_cta = DataValidation(type="list", formula1=f"Listas!$A$2:$A${len(cuentas_act)+1}", allow_blank=True)
+        ws.add_data_validation(dv_cta)
+        dv_cta.add("F2:F1000")
+    if len(ccs_act) > 0:
+        dv_cc = DataValidation(type="list", formula1=f"Listas!$D$2:$D${len(ccs_act)+1}", allow_blank=True)
+        ws.add_data_validation(dv_cc)
+        dv_cc.add("G2:G1000")
+
+    ws_inst = wb.create_sheet("Instrucciones")
+    ws_inst.append(["Instrucciones para importar transacciones en ClínicaFin"])
+    ws_inst[1][0].font = Font(bold=True, size=12)
+    ws_inst.append(["1. Complete sus registros en la hoja 'Transacciones' a partir de la fila 2."])
+    ws_inst.append(["2. Fecha: formato dd/mm/aaaa dentro de un período abierto."])
+    ws_inst.append(["3. Tipo: Ingreso o Salida."])
+    ws_inst.append(["4. Cuenta, Categoría y Centro de Costo deben existir en Cadastros (consulte la hoja 'Listas')."])
+    ws_inst.append(["5. Monto: siempre en la moneda de la cuenta elegida, mayor a cero."])
+    ws_inst.append(["6. Cotización: obligatoria si la cuenta es en USD o BRL (en PYG es 1)."])
+
+    _autoajustar_columnas_xlsx(ws)
+    _autoajustar_columnas_xlsx(ws_listas)
+    _autoajustar_columnas_xlsx(ws_inst)
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return Response(out.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment;filename=plantilla_transacciones.xlsx"})
+
+@bp.route('/previsualizar-importacion', methods=['POST'])
+@login_required
+def previsualizar_importacion():
+    archivo = request.files.get('archivo')
+    if not archivo or not archivo.filename:
+        return jsonify({'ok': False, 'error': 'Seleccione un archivo válido (.xlsx o .csv).'})
+
+    try:
+        lector = _leer_filas_archivo_importacion(archivo)
+        if not lector or len(lector) < 2:
+            return jsonify({'ok': False, 'error': 'El archivo está vacío o sin datos.'})
+
+        encabezados = [str(h).strip().lower() for h in lector[0]]
+        if 'fecha' not in encabezados[0] or len(encabezados) < 8:
+            return jsonify({'ok': False, 'error': 'Plantilla inválida. Descargue y utilice la plantilla oficial.'})
+
+        filas_res = []
+        validas = avisos = errores = 0
+        vistas_en_archivo = set()
+
+        for idx, fila in enumerate(lector[1:], start=2):
+            if not fila or not any(str(c).strip() for c in fila):
+                continue
+            while len(fila) < 10:
+                fila.append('')
+
+            fecha_str, tipo_str, desc_str, pac_str, cat_str, cta_str, cc_str, met_str, monto_str, cot_str = [str(c).strip() for c in fila[:10]]
+            estado_fila = 'OK'
+            motivo = 'Válida'
+
+            f_dt = None
+            for fmt in ('%d/%m/%Y', '%Y-%m-%d'):
+                try:
+                    f_dt = datetime.strptime(fecha_str, fmt)
+                    break
+                except ValueError:
+                    pass
+            if not f_dt:
+                estado_fila = 'Error'
+                motivo = 'Fecha inválida (use dd/mm/aaaa)'
+
+            monto_val = limpiar_monto(monto_str)
+            if estado_fila != 'Error' and tipo_str not in ('Ingreso', 'Salida'):
+                estado_fila = 'Error'
+                motivo = 'Tipo debe ser Ingreso o Salida'
+            if estado_fila != 'Error' and monto_val <= 0:
+                estado_fila = 'Error'
+                motivo = 'Monto debe ser mayor a cero'
+
+            cta = Cuenta.query.filter(Cuenta.nombre.ilike(cta_str)).first() if cta_str else None
+            if estado_fila != 'Error' and not cta:
+                estado_fila = 'Error'
+                motivo = f'Cuenta "{cta_str}" no existe'
+
+            if estado_fila != 'Error' and cat_str:
+                cat = Categoria.query.filter(Categoria.nombre.ilike(cat_str)).first()
+                if not cat:
+                    estado_fila = 'Error'
+                    motivo = f'Categoría "{cat_str}" no existe'
+
+            if estado_fila != 'Error' and cc_str:
+                cc = CentroCosto.query.filter(CentroCosto.nombre.ilike(cc_str)).first()
+                if not cc:
+                    estado_fila = 'Error'
+                    motivo = f'Centro de Costo "{cc_str}" no existe'
+
+            if estado_fila != 'Error' and f_dt and cta:
+                if verificar_bloqueo_fecha(f_dt, cta.id):
+                    estado_fila = 'Error'
+                    motivo = 'Período cerrado o bloqueado'
+
+            if estado_fila != 'Error' and f_dt and cta:
+                clave = (f_dt.strftime('%Y-%m-%d'), desc_str.lower(), cta.id, round(monto_val, 2))
+                existe_bd = Transaccion.query.filter(
+                    db.func.date(Transaccion.fecha) == f_dt.date(),
+                    Transaccion.descripcion.ilike(desc_str),
+                    Transaccion.cuenta_id == cta.id,
+                    Transaccion.monto == monto_val
+                ).first()
+                if existe_bd or clave in vistas_en_archivo:
+                    estado_fila = 'Aviso'
+                    motivo = 'Posible duplicado'
+                vistas_en_archivo.add(clave)
+
+            if estado_fila == 'Error':
+                errores += 1
+            elif estado_fila == 'Aviso':
+                avisos += 1
+                validas += 1
+            else:
+                validas += 1
+
+            mon_simb = '₲' if (not cta or cta.moneda == 'PYG') else ('US$' if cta.moneda == 'USD' else 'R$')
+            filas_res.append({
+                'fila': idx,
+                'fecha': fecha_str,
+                'tipo': tipo_str,
+                'descripcion': desc_str,
+                'paciente': pac_str,
+                'categoria': cat_str,
+                'cuenta': cta_str,
+                'centro': cc_str,
+                'metodo': met_str,
+                'monto_fmt': f"{mon_simb} {monto_val:,.0f}".replace(',', '.') if mon_simb == '₲' else f"{mon_simb} {monto_val:,.2f}",
+                'monto_raw': monto_str,
+                'cotizacion': cot_str or '1',
+                'estado': estado_fila,
+                'motivo': motivo
+            })
+
+        return jsonify({
+            'ok': True,
+            'total': len(filas_res),
+            'validas': validas,
+            'avisos': avisos,
+            'errores': errores,
+            'filas': filas_res
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'Error al procesar el archivo: {str(e)}'})
 
 @bp.route('/importar-transacciones', methods=['POST'])
 @login_required
 def importar_transacciones():
-    """Pág. 9: Importa transacciones validando cuenta, categoría, período abierto y moneda."""
+    """Pág. 9: Importa archivos .xlsx o .csv validando cada fila."""
     archivo = request.files.get('archivo')
     if not archivo or not archivo.filename:
         flash('Seleccione un archivo válido para importar.', 'danger')
         return redirect(url_for('main.dashboard'))
 
     try:
-        contenido = archivo.read().decode('utf-8-sig', errors='ignore')
-        lector = csv.reader(StringIO(contenido), delimiter=';' if ';' in contenido.splitlines()[0] else ',')
-        filas = list(lector)
+        filas = _leer_filas_archivo_importacion(archivo)
         if len(filas) < 2:
             flash('El archivo está vacío o no contiene filas para importar.', 'warning')
             return redirect(url_for('main.dashboard'))
 
         importadas = 0
         errores = 0
-        for idx, fila in enumerate(filas[1:], start=2):
-            if not fila or len(fila) < 9 or not fila[0].strip():
+        for fila in filas[1:]:
+            if not fila or len(fila) < 9 or not str(fila[0]).strip():
                 continue
             try:
-                fecha_str, tipo_str, desc_str, pac_str, cat_str, cta_str, cc_str, met_str, monto_str = [c.strip() for c in fila[:9]]
-                cot_str = fila[9].strip() if len(fila) > 9 else '1'
+                fecha_str, tipo_str, desc_str, pac_str, cat_str, cta_str, cc_str, met_str, monto_str = [str(c).strip() for c in fila[:9]]
+                cot_str = str(fila[9]).strip() if len(fila) > 9 else '1'
 
                 try:
                     f_dt = datetime.strptime(fecha_str, '%d/%m/%Y')
@@ -820,9 +1062,9 @@ def importar_transacciones():
 
         db.session.commit()
         if importadas > 0:
-            flash(f'{importadas} transacciones importadas correctamente ({errores} filas omitidas por error).', 'success')
+            flash(f'{importadas} transacciones importadas correctamente ({errores} filas con error omitidas).', 'success')
         else:
-            flash(f'No se pudo importar ninguna fila ({errores} con error). Verifique que los nombres de Cuenta existan.', 'danger')
+            flash(f'No se importó ninguna fila ({errores} con error).', 'danger')
     except Exception as e:
         flash(f'Plantilla inválida o error al procesar archivo: {str(e)}', 'danger')
 
@@ -863,7 +1105,6 @@ def bloquear_periodo():
         flash('La fecha Hasta no puede ser anterior a la fecha Desde.', 'danger')
         return redirect(url_for('main.bloqueos_vista'))
 
-    # Verificar superposición de rangos (Pág. 10)
     activos = BloqueoPeriodo.query.filter_by(estado='Bloqueado').all()
     for b in activos:
         misma_cta = (b.cuenta_id == cta_val) or (b.cuenta_id is None) or (cta_val is None)
@@ -924,7 +1165,6 @@ def desbloquear_periodo(id):
 @bp.route('/ventas')
 @login_required
 def ventas_vista():
-    # Sincronizar ventas con sus cuotas de CxC antes de listar
     for v_sync in Venta.query.all():
         if not v_sync.cuotas_cxc and v_sync.cliente_id:
             cxc_viejas = CuentaPorCobrar.query.filter(CuentaPorCobrar.concepto.ilike(f'%(Venta #{v_sync.id})%')).all()
@@ -980,7 +1220,7 @@ def ventas_vista():
 @bp.route('/exportar-ventas-excel')
 @login_required
 def exportar_ventas_excel():
-    """Pág. 21: Único botón Exportar Excel con Ventas (14 columnas + Totales), Cuotas y Cobros."""
+    """Pág. 21: Genera ventas_aaaa-mm-dd.xlsx con 3 hojas reales: Ventas (con fila Totales), Cuotas y Cobros."""
     q = request.args.get('q', '').strip()
     paquete_id = request.args.get('paquete_id', type=int)
     forma_pago = request.args.get('forma_pago', '').strip()
@@ -1008,12 +1248,16 @@ def exportar_ventas_excel():
         flash('No hay ventas para exportar.', 'warning')
         return redirect(url_for('main.ventas_vista'))
 
-    si = StringIO()
-    cw = csv.writer(si, delimiter=';')
-    cw.writerow(['=== HOJA 1: VENTAS ==='])
-    cw.writerow(['Fecha', 'Paciente', 'Plan', 'Forma de pago', 'Nº cuotas', 'Total (IVA incl.)', 'IVA', '% Tarifa', 'Tarifa de tarjeta', 'Costo de los servicios', 'Margen / Ganancia', 'Cobrado', 'Saldo', 'Estado'])
+    wb = openpyxl.Workbook()
+    ws_ventas = wb.active
+    ws_ventas.title = "Ventas"
+    headers_v = ['Fecha', 'Paciente', 'Plan', 'Forma de pago', 'Nº cuotas', 'Total (IVA incl.)', 'IVA', '% Tarifa', 'Tarifa de tarjeta', 'Costo de los servicios', 'Margen / Ganancia', 'Cobrado', 'Saldo', 'Estado']
+    ws_ventas.append(headers_v)
+    for cell in ws_ventas[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
 
-    sum_total = sum_iva = sum_tarifa = sum_costo = sum_margen = sum_cobrado = sum_saldo = 0.0
+    sum_total = sum_iva = sum_tarifa = sum_costo = sum_margen = sum_cobrado = sum_saldo = 0
     for v in ventas:
         nombre_cliente = v.cliente.nombre if v.cliente else 'Particular'
         nombre_plan = v.plan_nombre_historico or (v.paquete.nombre if v.paquete else 'Servicios Avulsos')
@@ -1034,22 +1278,30 @@ def exportar_ventas_excel():
         sum_cobrado += cob_v
         sum_saldo += sal_v
 
-        cw.writerow([
+        ws_ventas.append([
             v.fecha.strftime('%d/%m/%Y') if v.fecha else '',
-            nombre_cliente,
-            nombre_plan,
-            v.forma_pago or 'Cuotas (CxC)',
-            v.num_cuotas or 1,
+            nombre_cliente, nombre_plan, v.forma_pago or 'Cuotas (CxC)', v.num_cuotas or 1,
             tot, iva_v, porc_tarifa, tar_v, cos_v, mar_v, cob_v, sal_v, v.estado
         ])
 
-    cw.writerow(['Totales', '', '', '', '', round(sum_total), round(sum_iva), '', round(sum_tarifa), round(sum_costo), round(sum_margen), round(sum_cobrado), round(sum_saldo), ''])
-    cw.writerow([])
-    cw.writerow(['=== HOJA 2: CUOTAS ==='])
-    cw.writerow(['Venta', 'Paciente', 'Cuota', 'Vencimiento', 'Valor', 'Pagado', 'Saldo', 'Estado'])
+    ws_ventas.append(['Totales', '', '', '', '', sum_total, sum_iva, '', sum_tarifa, sum_costo, sum_margen, sum_cobrado, sum_saldo, ''])
+    ultima_fila = ws_ventas.max_row
+    for cell in ws_ventas[ultima_fila]:
+        cell.font = Font(bold=True)
+
+    for row in ws_ventas.iter_rows(min_row=2, max_row=ultima_fila):
+        for col_idx in (5, 6, 8, 9, 10, 11, 12):
+            row[col_idx].number_format = '#,##0'
+
+    ws_cuotas = wb.create_sheet("Cuotas")
+    ws_cuotas.append(['Venta', 'Paciente', 'Cuota', 'Vencimiento', 'Valor', 'Pagado', 'Saldo', 'Estado'])
+    for cell in ws_cuotas[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+
     for v in ventas:
         for c in v.cuotas_cxc:
-            cw.writerow([
+            ws_cuotas.append([
                 f"Venta #{v.id}",
                 v.cliente.nombre if v.cliente else 'Particular',
                 c.numero_cuota_str or c.concepto,
@@ -1059,28 +1311,45 @@ def exportar_ventas_excel():
                 round(c.saldo or 0),
                 c.estado
             ])
+    for row in ws_cuotas.iter_rows(min_row=2):
+        for col_idx in (4, 5, 6):
+            row[col_idx].number_format = '#,##0'
 
-    cw.writerow([])
-    cw.writerow(['=== HOJA 3: COBROS ==='])
-    cw.writerow(['Venta', 'Paciente', 'Fecha', 'Moneda', 'Monto original', 'Cotización', 'Equivalente en Gs.', 'Descuento', 'Cuenta'])
+    ws_cobros = wb.create_sheet("Cobros")
+    ws_cobros.append(['Venta', 'Paciente', 'Fecha', 'Moneda', 'Monto original', 'Cotización', 'Equivalente en Gs.', 'Descuento', 'Cuenta'])
+    for cell in ws_cobros[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+
     for v in ventas:
         txs_venta = Transaccion.query.filter_by(venta_id=v.id).all()
         for t in txs_venta:
-            cw.writerow([
+            ws_cobros.append([
                 f"Venta #{v.id}",
                 v.cliente.nombre if v.cliente else 'Particular',
                 t.fecha.strftime('%d/%m/%Y') if t.fecha else '',
                 t.moneda or 'PYG',
-                t.monto,
-                t.cotizacion or 1,
-                round(t.equivalente_gs or t.monto),
+                round(t.monto or 0, 2),
+                round(t.cotizacion or 1, 2),
+                round(t.equivalente_gs or t.monto or 0),
                 round(t.descuento_aplicado or 0),
                 t.cuenta.nombre if t.cuenta else '-'
             ])
+    for row in ws_cobros.iter_rows(min_row=2):
+        row[4].number_format = '#,##0' if row[3].value == 'PYG' else '#,##0.00'
+        row[5].number_format = '#,##0'
+        row[6].number_format = '#,##0'
+        row[7].number_format = '#,##0'
 
-    output = si.getvalue().encode('utf-8-sig')
+    _autoajustar_columnas_xlsx(ws_ventas)
+    _autoajustar_columnas_xlsx(ws_cuotas)
+    _autoajustar_columnas_xlsx(ws_cobros)
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
     fecha_hoy = date.today().strftime('%Y-%m-%d')
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition": f"attachment;filename=ventas_{fecha_hoy}.csv"})
+    return Response(out.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment;filename=ventas_{fecha_hoy}.xlsx"})
 
 @bp.route('/agregar-venta-completa', methods=['POST'])
 @login_required
@@ -1134,7 +1403,6 @@ def agregar_venta_completa():
             conceptos_desc.append(f"Avulsos: {nombres_avulsos}")
         concepto_venta = " + ".join(conceptos_desc) if conceptos_desc else "Venta General"
 
-        # Asegurar que el nombre del plan exista como Categoría de Ingreso para futuros cobros (Pág. 3)
         obtener_o_crear_categoria_plan(concepto_venta)
 
         venta = Venta(
@@ -1172,7 +1440,6 @@ def agregar_venta_completa():
                 subtotal=item['servicio'].precio * item['cantidad']
             ))
 
-        # Cálculo de cuotas redondeando hacia abajo y llevando la diferencia a la última cuota (Pág. 18)
         cuota_base = int(precio_total // num_cuotas)
         resto = precio_total - (cuota_base * num_cuotas)
 
@@ -1254,7 +1521,6 @@ def cxc_vista():
     if current_user.username.lower() == 'recepcion':
         return redirect(url_for('main.ventas_vista'))
 
-    # Inicializar saldos y vínculos de cuotas previas
     for c_init in CuentaPorCobrar.query.all():
         if not c_init.venta_id and '(Venta #' in (c_init.concepto or ''):
             try:
@@ -1313,7 +1579,7 @@ def cxc_vista():
 @bp.route('/exportar-cxc-excel')
 @login_required
 def exportar_cxc_excel():
-    """Pág. 28: Exportar Excel de Cuentas por Cobrar respetando filtros activos."""
+    """Pág. 28: Exportar cuentas_por_cobrar_aaaa-mm-dd.xlsx respetando filtros activos."""
     q = request.args.get('q', '').strip()
     paquete_id = request.args.get('paquete_id', type=int)
     metodo_pago = request.args.get('metodo_pago', '').strip()
@@ -1343,11 +1609,16 @@ def exportar_cxc_excel():
         flash('No hay registros para exportar.', 'warning')
         return redirect(url_for('main.cxc_vista'))
 
-    si = StringIO()
-    cw = csv.writer(si, delimiter=';')
-    cw.writerow(['Fecha Emisión', 'Concepto', 'Cliente/Paciente', 'Vencimiento', 'Moneda', 'Total', 'Pagado', 'Saldo', 'Estado', 'Forma de pago', 'Cuenta'])
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Cuentas por Cobrar"
+    ws.append(['Fecha Emisión', 'Concepto', 'Cliente/Paciente', 'Vencimiento', 'Moneda', 'Total', 'Pagado', 'Saldo', 'Estado', 'Forma de pago', 'Cuenta'])
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+
     for x in cxc_list:
-        cw.writerow([
+        ws.append([
             x.fecha_emision.strftime('%d/%m/%Y') if x.fecha_emision else '',
             x.concepto,
             x.cliente.nombre if x.cliente else 'Particular',
@@ -1357,12 +1628,19 @@ def exportar_cxc_excel():
             round(x.pagado or 0),
             round(x.saldo or 0),
             x.estado,
-            x.metodo_pago or '-',
-            x.cuenta_nombre or '-'
+            x.metodo_pago if (x.pagado or 0) > 0 else '-',
+            x.cuenta_nombre if (x.pagado or 0) > 0 else '-'
         ])
-    output = si.getvalue().encode('utf-8-sig')
+    for row in ws.iter_rows(min_row=2):
+        for col_idx in (5, 6, 7):
+            row[col_idx].number_format = '#,##0'
+
+    _autoajustar_columnas_xlsx(ws)
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
     fecha_hoy = date.today().strftime('%Y-%m-%d')
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition": f"attachment;filename=cuentas_por_cobrar_{fecha_hoy}.csv"})
+    return Response(out.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment;filename=cuentas_por_cobrar_{fecha_hoy}.xlsx"})
 
 @bp.route('/registrar-cobro-avanzado', methods=['POST'])
 @login_required
@@ -1404,7 +1682,6 @@ def registrar_cobro_avanzado():
         equivalente_gs = monto_recibido
     else:
         monto_sugerido = round(saldo_neto_exigido / cotizacion, 2)
-        # Si el monto recibido coincide con el sugerido (2 decimales), cancela exactamente el saldo sin sobrar centavos (Pág. 30)
         if abs(monto_recibido - monto_sugerido) <= 0.02:
             equivalente_gs = saldo_neto_exigido
         else:
@@ -1415,7 +1692,6 @@ def registrar_cobro_avanzado():
         return redirect(url_for('main.cxc_vista'))
 
     if equivalente_gs > 0:
-        # Categoría con el nombre del plan vendido (Pág. 3)
         nombre_plan = None
         if cxc.venta:
             nombre_plan = cxc.venta.plan_nombre_historico or (cxc.venta.paquete.nombre if cxc.venta.paquete else None)
@@ -1589,7 +1865,7 @@ def cxp_vista():
 @bp.route('/exportar-cxp-excel')
 @login_required
 def exportar_cxp_excel():
-    """Pág. 28: Exportar Excel de Cuentas a Pagar respetando filtros activos."""
+    """Pág. 28: Exportar cuentas_a_pagar_aaaa-mm-dd.xlsx respetando filtros activos."""
     q = request.args.get('q', '').strip()
     categoria_id = request.args.get('categoria_id', type=int)
     metodo_pago = request.args.get('metodo_pago', '').strip()
@@ -1617,26 +1893,39 @@ def exportar_cxp_excel():
         flash('No hay registros para exportar.', 'warning')
         return redirect(url_for('main.cxp_vista'))
 
-    si = StringIO()
-    cw = csv.writer(si, delimiter=';')
-    cw.writerow(['Proveedor', 'Concepto', 'Categoría', 'Vencimiento', 'Moneda', 'Total', 'Pagado', 'Saldo', 'Estado', 'Forma de pago', 'Cuenta'])
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Cuentas a Pagar"
+    ws.append(['Proveedor', 'Concepto', 'Categoría', 'Vencimiento', 'Moneda', 'Total', 'Pagado', 'Saldo', 'Estado', 'Forma de pago', 'Cuenta'])
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+
     for p in cxp_list:
-        cw.writerow([
+        ws.append([
             p.proveedor,
             p.concepto,
             p.categoria.nombre if p.categoria else 'Sin Categoría',
             p.fecha_vencimiento.strftime('%d/%m/%Y') if p.fecha_vencimiento else '',
             p.moneda or 'PYG',
-            p.monto or 0,
-            p.pagado or 0,
-            p.saldo or 0,
+            round(p.monto or 0, 2),
+            round(p.pagado or 0, 2),
+            round(p.saldo or 0, 2),
             p.estado,
-            p.metodo_pago or '-',
-            p.cuenta_nombre or '-'
+            p.metodo_pago if (p.pagado or 0) > 0 else '-',
+            p.cuenta_nombre if (p.pagado or 0) > 0 else '-'
         ])
-    output = si.getvalue().encode('utf-8-sig')
+    for row in ws.iter_rows(min_row=2):
+        fmt = '#,##0' if row[4].value == 'PYG' else '#,##0.00'
+        for col_idx in (5, 6, 7):
+            row[col_idx].number_format = fmt
+
+    _autoajustar_columnas_xlsx(ws)
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
     fecha_hoy = date.today().strftime('%Y-%m-%d')
-    return Response(output, mimetype="text/csv", headers={"Content-Disposition": f"attachment;filename=cuentas_a_pagar_{fecha_hoy}.csv"})
+    return Response(out.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment;filename=cuentas_a_pagar_{fecha_hoy}.xlsx"})
 
 @bp.route('/agregar-cxp', methods=['POST'])
 @login_required
@@ -1878,7 +2167,6 @@ def editar_cuenta(id):
     if request.form.get('color'):
         c.color = request.form.get('color')
 
-    # Pág. 22: Si alguna transacción de la cuenta está en período cerrado, no permitir cambiar Saldo Inicial
     if request.form.get('saldo_inicial') is not None:
         nuevo_saldo = limpiar_monto(request.form.get('saldo_inicial'))
         if nuevo_saldo != (c.saldo_inicial or 0.0):
@@ -1888,7 +2176,6 @@ def editar_cuenta(id):
                     return redirect(url_for('main.cadastros'))
             c.saldo_inicial = nuevo_saldo
 
-    # Pág. 22: La Moneda queda bloqueada cuando la cuenta ya tiene movimientos
     if not c.transacciones and request.form.get('moneda'):
         c.moneda = request.form.get('moneda', c.moneda)
 
@@ -2380,7 +2667,6 @@ def reparar_datos_historicos():
     if current_user.username.lower() == 'recepcion':
         return "No autorizado", 403
 
-    # 1. Eliminar registros de prueba corruptos indicados en el PDF
     eliminadas = 0
     for t in Transaccion.query.all():
         desc_up = (t.descripcion or '').upper()
@@ -2398,17 +2684,14 @@ def reparar_datos_historicos():
                 recalcular_estado_cxp(cxp_rel)
             eliminadas += 1
 
-    # 2. Corregir fechas de vencimiento escalonadas (mes a mes) en las cuotas de CxC
     cuotas_corregidas = 0
     for cxc in CuentaPorCobrar.query.all():
-        # Vincular venta_id si faltaba
         if not cxc.venta_id and '(Venta #' in (cxc.concepto or ''):
             try:
                 cxc.venta_id = int(cxc.concepto.split('(Venta #')[1].split(')')[0])
             except Exception:
                 pass
 
-        # Extraer número de cuota (ej. "Cuota 2 de 5" -> índice 2)
         if 'Cuota ' in (cxc.concepto or '') and ' de ' in (cxc.concepto or ''):
             try:
                 parte_num = cxc.concepto.split('Cuota ')[1].split(' de ')[0].strip()
@@ -2424,143 +2707,9 @@ def reparar_datos_historicos():
                 pass
         recalcular_estado_cxc_y_venta(cxc)
 
-    # 3. Sincronizar todas las ventas
     for v in Venta.query.all():
         recalcular_venta(v)
 
     db.session.commit()
     flash(f'Datos reparados: {eliminadas} transacción(es) de prueba eliminada(s) y {cuotas_corregidas} fecha(s) de vencimiento escalonada(s) corregida(s).', 'success')
     return redirect(url_for('main.cxc_vista'))
-
-
-@bp.route('/previsualizar-importacion', methods=['POST'])
-@login_required
-def previsualizar_importacion():
-    archivo = request.files.get('archivo')
-    if not archivo or not archivo.filename:
-        return jsonify({'ok': False, 'error': 'Seleccione un archivo válido.'})
-
-    try:
-        contenido = archivo.read().decode('utf-8-sig', errors='ignore')
-        lineas = [l for l in contenido.splitlines() if l.strip()]
-        if not lineas:
-            return jsonify({'ok': False, 'error': 'El archivo está vacío.'})
-
-        delim = ';' if ';' in lineas[0] else ','
-        lector = list(csv.reader(StringIO(contenido), delimiter=delim))
-        encabezados = [h.strip().lower() for h in lector[0]]
-        if 'fecha' not in encabezados[0] or len(encabezados) < 8:
-            return jsonify({'ok': False, 'error': 'Plantilla inválida. Descargue y utilice la plantilla oficial.'})
-
-        filas_res = []
-        validas = avisos = errores = 0
-        vistas_en_archivo = set()
-
-        for idx, fila in enumerate(lector[1:], start=2):
-            if not fila or not any(c.strip() for c in fila):
-                continue
-            while len(fila) < 10:
-                fila.append('')
-
-            fecha_str, tipo_str, desc_str, pac_str, cat_str, cta_str, cc_str, met_str, monto_str, cot_str = [c.strip() for c in fila[:10]]
-            estado_fila = 'OK'
-            motivo = 'Válida'
-
-            # 1. Validar fecha
-            f_dt = None
-            for fmt in ('%d/%m/%Y', '%Y-%m-%d'):
-                try:
-                    f_dt = datetime.strptime(fecha_str, fmt)
-                    break
-                except ValueError:
-                    pass
-            if not f_dt:
-                estado_fila = 'Error'
-                motivo = 'Fecha inválida (use dd/mm/aaaa)'
-
-            # 2. Validar tipo y monto
-            monto_val = limpiar_monto(monto_str)
-            cot_val = limpiar_monto(cot_str) or 1.0
-            if estado_fila != 'Error' and tipo_str not in ('Ingreso', 'Salida'):
-                estado_fila = 'Error'
-                motivo = 'Tipo debe ser Ingreso o Salida'
-            if estado_fila != 'Error' and monto_val <= 0:
-                estado_fila = 'Error'
-                motivo = 'Monto debe ser mayor a cero'
-
-            # 3. Validar cuenta, categoría y centro de costo
-            cta = Cuenta.query.filter(Cuenta.nombre.ilike(cta_str)).first() if cta_str else None
-            if estado_fila != 'Error' and not cta:
-                estado_fila = 'Error'
-                motivo = f'Cuenta "{cta_str}" no existe'
-
-            if estado_fila != 'Error' and cat_str:
-                cat = Categoria.query.filter(Categoria.nombre.ilike(cat_str)).first()
-                if not cat:
-                    estado_fila = 'Error'
-                    motivo = f'Categoría "{cat_str}" no existe'
-
-            if estado_fila != 'Error' and cc_str:
-                cc = CentroCosto.query.filter(CentroCosto.nombre.ilike(cc_str)).first()
-                if not cc:
-                    estado_fila = 'Error'
-                    motivo = f'Centro de Costo "{cc_str}" no existe'
-
-            # 4. Validar bloqueo de período
-            if estado_fila != 'Error' and f_dt and cta:
-                if verificar_bloqueo_fecha(f_dt, cta.id):
-                    estado_fila = 'Error'
-                    motivo = 'Período cerrado o bloqueado'
-
-            # 5. Validar posible duplicado
-            if estado_fila != 'Error' and f_dt and cta:
-                clave = (f_dt.strftime('%Y-%m-%d'), desc_str.lower(), cta.id, round(monto_val, 2))
-                existe_bd = Transaccion.query.filter(
-                    db.func.date(Transaccion.fecha) == f_dt.date(),
-                    Transaccion.descripcion.ilike(desc_str),
-                    Transaccion.cuenta_id == cta.id,
-                    Transaccion.monto == monto_val
-                ).first()
-                if existe_bd or clave in vistas_en_archivo:
-                    estado_fila = 'Aviso'
-                    motivo = 'Posible duplicado'
-                vistas_en_archivo.add(clave)
-
-            if estado_fila == 'Error':
-                errores += 1
-            elif estado_fila == 'Aviso':
-                avisos += 1
-                validas += 1
-            else:
-                validas += 1
-
-            mon_simb = '₲' if (not cta or cta.moneda == 'PYG') else ('US$' if cta.moneda == 'USD' else 'R$')
-            filas_res.append({
-                'fila': idx,
-                'fecha': fecha_str,
-                'tipo': tipo_str,
-                'descripcion': desc_str,
-                'paciente': pac_str,
-                'categoria': cat_str,
-                'cuenta': cta_str,
-                'centro': cc_str,
-                'metodo': met_str,
-                'monto_fmt': f"{mon_simb} {monto_val:,.0f}".replace(',', '.') if mon_simb == '₲' else f"{mon_simb} {monto_val:,.2f}",
-                'monto_raw': monto_str,
-                'cotizacion': cot_str or '1',
-                'estado': estado_fila,
-                'motivo': motivo
-            })
-
-        return jsonify({
-            'ok': True,
-            'total': len(filas_res),
-            'validas': validas,
-            'avisos': avisos,
-            'errores': errores,
-            'filas': filas_res
-        })
-    except Exception as e:
-        return jsonify({'ok': False, 'error': f'Error al leer el archivo: {str(e)}'})
-    
-
