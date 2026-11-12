@@ -31,7 +31,7 @@
 <div class="tab-content" id="cadastrosTabsContent">
     
     {% if current_user.username.lower() != 'recepcion' %}
-    <!-- 1. CUENTAS -->
+    <!-- 1. CUENTAS (Págs. 22 y 23) -->
     <div class="tab-pane fade show active" id="tab-cuentas">
         <div class="d-flex justify-content-between mb-3">
             <h5>Cuentas Bancarias y Cajas</h5>
@@ -51,6 +51,7 @@
                     </thead>
                     <tbody>
                         {% for c in cuentas %}
+                        {% set simb_c = '₲' if c.moneda == 'PYG' else ('US$' if c.moneda == 'USD' else 'R$') %}
                         <tr>
                             <td class="fw-bold">
                                 <span class="cuenta-dot d-inline-block rounded-circle me-2" style="width: 12px; height: 12px; background-color: {{ c.color or '#17b978' }};"></span>
@@ -58,16 +59,22 @@
                             </td>
                             <td>{{ c.tipo_cuenta }}</td>
                             <td><span class="badge bg-secondary">{{ c.moneda }}</span></td>
-                            <td>{{ "{:,.2f}".format(c.saldo_inicial or 0) }}</td>
+                            <td class="fw-bold">
+                                {% if c.moneda == 'PYG' %}
+                                    ₲ {{ "{:,.0f}".format(c.saldo_inicial or 0).replace(',', '.') }}
+                                {% else %}
+                                    {{ simb_c }} {{ "{:,.2f}".format(c.saldo_inicial or 0) }}
+                                {% endif %}
+                            </td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCuenta{{ c.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
-                                <form action="{{ url_for('main.eliminar_cuenta', id=c.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir esta cuenta?');" class="d-inline">
+                                <form action="{{ url_for('main.eliminar_cuenta', id=c.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar esta cuenta?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
 
-                        <!-- Modal Editar Cuenta -->
+                        <!-- Modal Editar Cuenta (Págs. 22 y 23) -->
                         <div class="modal fade" id="modalEditarCuenta{{ c.id }}" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
@@ -91,15 +98,20 @@
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Moneda</label>
-                                                <select class="form-select" name="moneda">
-                                                    <option value="PYG" {% if c.moneda == 'PYG' %}selected{% endif %}>PYG</option>
-                                                    <option value="USD" {% if c.moneda == 'USD' %}selected{% endif %}>USD</option>
-                                                    <option value="BRL" {% if c.moneda == 'BRL' %}selected{% endif %}>BRL</option>
+                                                <select class="form-select" name="moneda" {% if c.transacciones %}disabled{% endif %}>
+                                                    <option value="PYG" {% if c.moneda == 'PYG' %}selected{% endif %}>PYG (₲)</option>
+                                                    <option value="USD" {% if c.moneda == 'USD' %}selected{% endif %}>USD (US$)</option>
+                                                    <option value="BRL" {% if c.moneda == 'BRL' %}selected{% endif %}>BRL (R$)</option>
                                                 </select>
+                                                {% if c.transacciones %}
+                                                <input type="hidden" name="moneda" value="{{ c.moneda }}">
+                                                <small class="text-muted">No se puede cambiar la moneda: la cuenta ya tiene movimientos.</small>
+                                                {% endif %}
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label">Saldo Inicial</label>
+                                                <label class="form-label">Saldo Inicial ({{ simb_c }})</label>
                                                 <input type="number" step="any" class="form-control" name="saldo_inicial" value="{{ c.saldo_inicial or 0 }}" required>
+                                                <small class="text-muted">Cambiar el Saldo Inicial recalculará el Saldo Cuenta de las transacciones.</small>
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Color identificador</label>
@@ -153,7 +165,7 @@
                             <td>{{ cl.fecha_nacimiento.strftime('%d/%m/%Y') if cl.fecha_nacimiento else '-' }}</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCliente{{ cl.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
-                                <form action="{{ url_for('main.eliminar_cliente', id=cl.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este cliente?');" class="d-inline">
+                                <form action="{{ url_for('main.eliminar_cliente', id=cl.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar este cliente?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
@@ -235,7 +247,7 @@
                             <td><span class="badge bg-primary">{{ m.porcentaje_clinica if m.porcentaje_clinica is not none else 30 }}%</span></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarMedico{{ m.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
-                                <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este médico?');" class="d-inline">
+                                <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar este médico?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
@@ -316,7 +328,7 @@
                             <td>{{ s.reparto_adicional or 0 }}%</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarServicio{{ s.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
-                                <form action="{{ url_for('main.eliminar_servicio', id=s.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este servicio?');" class="d-inline">
+                                <form action="{{ url_for('main.eliminar_servicio', id=s.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar este servicio?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
@@ -362,7 +374,7 @@
         </div>
     </div>
 
-    <!-- 5. PLANOS Y PAQUETES -->
+    <!-- 5. PLANOS Y PAQUETES (Pág. 25: Botón + Agregar servicio en Editar Plan + Costo Total calculado) -->
     <div class="tab-pane fade" id="tab-paquetes">
         <div class="d-flex justify-content-between mb-3">
             <h5>Planos y Paquetes Médicos</h5>
@@ -383,21 +395,22 @@
                     </thead>
                     <tbody>
                         {% for p in paquetes %}
+                        {% set costo_total_p = p.items | sum(attribute='costo_total_item') %}
                         <tr>
                             <td class="fw-bold text-primary">{{ p.nombre }}</td>
-                            <td>{{ p.duracion_meses or 4 }} meses</td>
+                            <td>{{ p.duracion_meses if p.duracion_meses is not none else 0 }} meses</td>
                             <td class="fw-bold">₲ {{ "{:,.0f}".format(p.precio or 0).replace(',', '.') }}</td>
                             <td>{{ p.items|length }} ítems</td>
-                            <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(p.items | sum(attribute='costo_total_item')).replace(',', '.') }}</td>
+                            <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(costo_total_p or 0).replace(',', '.') }}</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarPaquete{{ p.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
-                                <form action="{{ url_for('main.eliminar_paquete', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir este paquete?');" class="d-inline">
+                                <form action="{{ url_for('main.eliminar_paquete', id=p.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar este paquete?');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
                         </tr>
 
-                        <!-- Modal Editar Paquete -->
+                        <!-- Modal Editar Paquete (Pág. 25) -->
                         <div class="modal fade" id="modalEditarPaquete{{ p.id }}" tabindex="-1">
                             <div class="modal-dialog modal-xl">
                                 <div class="modal-content">
@@ -418,7 +431,7 @@
                                                 </div>
                                                 <div class="col-md-3 mb-3">
                                                     <label class="form-label fw-bold">Duración (Meses)</label>
-                                                    <input type="number" class="form-control" name="duracion_meses" value="{{ p.duracion_meses or 4 }}" required>
+                                                    <input type="number" class="form-control" name="duracion_meses" value="{{ p.duracion_meses if p.duracion_meses is not none else 0 }}" required>
                                                 </div>
                                             </div>
 
@@ -431,7 +444,7 @@
                                                 <div class="col-md-1"></div>
                                             </div>
 
-                                            <div class="contenedor-items-editar">
+                                            <div id="contenedor-editar-paquete-{{ p.id }}" class="contenedor-items-editar">
                                                 {% for item in p.items %}
                                                 <div class="row item-row mb-2 align-items-end">
                                                     <div class="col-md-5">
@@ -458,6 +471,18 @@
                                                 </div>
                                                 {% endfor %}
                                             </div>
+
+                                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                                                <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="agregarFilaEditarPaquete({{ p.id }})">
+                                                    <i class="fa-solid fa-plus me-1"></i> Agregar servicio
+                                                </button>
+                                                <div class="fw-bold text-danger">
+                                                    Costo total del plan: ₲ {{ "{:,.0f}".format(costo_total_p or 0).replace(',', '.') }}
+                                                </div>
+                                            </div>
+                                            <small class="text-muted d-block mt-2">
+                                                <i class="fa-solid fa-circle-info me-1"></i> Los cambios valen para las ventas nuevas. Las {{ p.ventas|length }} venta(s) ya registrada(s) con este plan no se modifican.
+                                            </small>
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -499,6 +524,9 @@
                             <td><span class="badge {% if cat.tipo == 'Ingreso' %}bg-success{% else %}bg-danger{% endif %}">{{ cat.tipo }}</span></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCat{{ cat.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
+                                <form action="{{ url_for('main.eliminar_categoria', id=cat.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar esta categoría?');" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
+                                </form>
                             </td>
                         </tr>
 
@@ -541,7 +569,7 @@
         </div>
     </div>
 
-    <!-- 7. CENTROS DE COSTO -->
+    <!-- 7. CENTROS DE COSTO (Pág. 24) -->
     <div class="tab-pane fade" id="tab-centros">
         <div class="d-flex justify-content-between mb-3">
             <h5>Centros de Costo</h5>
@@ -562,7 +590,7 @@
                             <td class="fw-bold">{{ cc.nombre }}</td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarCentro{{ cc.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
-                                <form action="{{ url_for('main.eliminar_centro_costo', id=cc.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar este centro de costo?');" class="d-inline">
+                                <form action="{{ url_for('main.eliminar_centro_costo', id=cc.id) }}" method="POST" onsubmit="return confirm('¿Eliminar {{ cc.nombre }}? Si tiene movimientos asociados, se inactivará automáticamente para conservar el historial.');" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir"><i class="fa-solid fa-trash"></i> Excluir</button>
                                 </form>
                             </td>
@@ -613,7 +641,7 @@
                 <div class="modal-body">
                     <div class="mb-3"><label class="form-label">Nombre</label><input type="text" class="form-control" name="nombre" required placeholder="Ej: Caja Principal Gs."></div>
                     <div class="mb-3"><label class="form-label">Tipo de Cuenta</label><select class="form-select" name="tipo_cuenta"><option value="Caja Efectivo">Caja Efectivo</option><option value="Banco">Banco</option><option value="Tarjeta">Tarjeta</option></select></div>
-                    <div class="mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG">PYG (₲)</option><option value="USD">USD ($)</option><option value="BRL">BRL (R$)</option></select></div>
+                    <div class="mb-3"><label class="form-label">Moneda</label><select class="form-select" name="moneda"><option value="PYG">PYG (₲)</option><option value="USD">USD (US$)</option><option value="BRL">BRL (R$)</option></select></div>
                     <div class="mb-3"><label class="form-label">Saldo Inicial</label><input type="number" step="any" class="form-control" name="saldo_inicial" value="0" required></div>
                     <div class="mb-3"><label class="form-label">Color identificador</label><input type="color" class="form-control form-control-color w-100" name="color" value="#17b978"></div>
                 </div>
@@ -735,7 +763,7 @@
                             <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button></div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="agregarFilaItem()"><i class="fa-solid fa-plus me-1"></i> Agregar otro ítem</button>
+                    <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="agregarFilaItem()"><i class="fa-solid fa-plus me-1"></i> Agregar servicio</button>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-success fw-bold">Guardar Paquete</button></div>
             </form>
@@ -783,6 +811,17 @@ function agregarFilaItem() {
     nuevaFila.querySelectorAll('input').forEach(input => input.value = input.name.includes('cantidad') ? '1' : '0');
     nuevaFila.querySelector('select').selectedIndex = 0;
     contenedor.appendChild(nuevaFila);
+}
+
+function agregarFilaEditarPaquete(paqId) {
+    const contenedor = document.getElementById(`contenedor-editar-paquete-${paqId}`);
+    const plantilla = document.querySelector('#contenedor-items-paquete .item-row');
+    if (contenedor && plantilla) {
+        const nuevaFila = plantilla.cloneNode(true);
+        nuevaFila.querySelectorAll('input').forEach(input => input.value = input.name.includes('cantidad') ? '1' : '0');
+        nuevaFila.querySelector('select').selectedIndex = 0;
+        contenedor.appendChild(nuevaFila);
+    }
 }
 
 function autocompletarDatosServicio(select) {
