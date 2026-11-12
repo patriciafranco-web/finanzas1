@@ -332,29 +332,64 @@
     </div>
 </div>
 
-<!-- MODAL IMPORTAR TRANSACCIONES (Pág. 9) -->
+<!-- MODAL IMPORTAR TRANSACCIONES CON VISTA PREVIA (Pág. 9) -->
 <div class="modal fade" id="modalImportar" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <form action="{{ url_for('main.importar_transacciones') }}" method="POST" enctype="multipart/form-data">
                 <div class="modal-header">
-                    <h5 class="modal-title">Importar transacciones</h5>
+                    <h5 class="modal-title fw-bold">Importar transacciones</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small mb-3">1. Descargue la plantilla &middot; 2. Complete y suba el archivo &middot; 3. Revise y confirme</p>
                     <div class="d-flex justify-content-between align-items-center mb-3 p-2 bg-light rounded border">
-                        <span>¿Aún no tiene el modelo de importación?</span>
-                        <a href="{{ url_for('main.descargar_plantilla') }}" class="btn btn-sm btn-outline-info fw-bold"><i class="fa-solid fa-file-arrow-down me-1"></i> Descargar plantilla</a>
+                        <span>Descargue el modelo vacío con las columnas oficiales:</span>
+                        <a href="{{ url_for('main.descargar_plantilla') }}" class="btn btn-sm btn-outline-info fw-bold">
+                            <i class="fa-solid fa-file-arrow-down me-1"></i> Descargar plantilla
+                        </a>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Seleccionar archivo (.csv / .xlsx)</label>
-                        <input type="file" class="form-control" name="archivo" accept=".csv,.txt" required>
+                        <label class="form-label fw-bold">Seleccionar archivo (.csv)</label>
+                        <input type="file" class="form-control" name="archivo" id="inputArchivoImportar" accept=".csv,.txt" required onchange="previsualizarArchivoImportacion()">
+                    </div>
+
+                    <div id="alertaErrorPlantilla" class="alert alert-danger py-2 small" style="display:none;"></div>
+
+                    <!-- Vista previa fila por fila -->
+                    <div id="contenedorPreviewImportar" style="display:none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <div>
+                                <span class="badge bg-secondary me-1" id="badgeTotalFilas">0 filas</span>
+                                <span class="badge bg-success me-1" id="badgeFilasValidas">0 válidas</span>
+                                <span class="badge bg-warning text-dark me-1" id="badgeFilasAviso">0 avisos</span>
+                                <span class="badge bg-danger" id="badgeFilasError">0 con error</span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="btnDescargarErrores" style="display:none;" onclick="descargarFilasConErrorCSV()">
+                                <i class="fa-solid fa-download me-1"></i> Descargar filas con error
+                            </button>
+                        </div>
+                        <div class="table-responsive border rounded" style="max-height: 260px; overflow-y: auto;">
+                            <table class="table table-sm table-hover mb-0 align-middle small">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Fila</th>
+                                        <th>Fecha</th>
+                                        <th>Descripción</th>
+                                        <th>Cuenta</th>
+                                        <th class="text-end">Monto</th>
+                                        <th class="text-center">Estado</th>
+                                        <th>Detalle / Motivo</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyPreviewImportar"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Importar filas válidas</button>
+                    <button type="submit" class="btn btn-primary fw-bold" id="btnConfirmarImportacion" disabled>Importar filas</button>
                 </div>
             </form>
         </div>
@@ -362,6 +397,85 @@
 </div>
 
 <script>
+let filasConErrorCache = [];
+
+function previsualizarArchivoImportacion() {
+    const fileInput = document.getElementById('inputArchivoImportar');
+    const alerta = document.getElementById('alertaErrorPlantilla');
+    const cont = document.getElementById('contenedorPreviewImportar');
+    const tbody = document.getElementById('tbodyPreviewImportar');
+    const btnConfirmar = document.getElementById('btnConfirmarImportacion');
+    const btnErrores = document.getElementById('btnDescargarErrores');
+
+    if (!fileInput.files || !fileInput.files[0]) return;
+
+    let formData = new FormData();
+    formData.append('archivo', fileInput.files[0]);
+
+    fetch("{{ url_for('main.previsualizar_importacion') }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) {
+            alerta.style.display = 'block';
+            alerta.textContent = data.error || 'Plantilla inválida';
+            cont.style.display = 'none';
+            btnConfirmar.disabled = true;
+            return;
+        }
+        alerta.style.display = 'none';
+        cont.style.display = 'block';
+        document.getElementById('badgeTotalFilas').textContent = `${data.total} filas`;
+        document.getElementById('badgeFilasValidas').textContent = `${data.validas} válidas`;
+        document.getElementById('badgeFilasAviso').textContent = `${data.avisos} aviso(s)`;
+        document.getElementById('badgeFilasError').textContent = `${data.errores} con error`;
+
+        tbody.innerHTML = '';
+        filasConErrorCache = [];
+
+        data.filas.forEach(f => {
+            if (f.estado === 'Error') filasConErrorCache.push(f);
+            let badgeClass = f.estado === 'OK' ? 'bg-success' : (f.estado === 'Aviso' ? 'bg-warning text-dark' : 'bg-danger');
+            let tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="fw-bold">${f.fila}</td>
+                <td>${f.fecha}</td>
+                <td>${f.descripcion}</td>
+                <td>${f.cuenta}</td>
+                <td class="text-end fw-bold">${f.monto_fmt}</td>
+                <td class="text-center"><span class="badge ${badgeClass}">${f.estado}</span></td>
+                <td class="text-muted">${f.motivo}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        btnErrores.style.display = filasConErrorCache.length > 0 ? 'inline-block' : 'none';
+        if (data.validas > 0) {
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = `Importar ${data.validas} fila(s)`;
+        } else {
+            btnConfirmar.disabled = true;
+            btnConfirmar.textContent = 'Sin filas válidas';
+        }
+    });
+}
+
+function descargarFilasConErrorCSV() {
+    if (!filasConErrorCache.length) return;
+    let csvContent = "Fila;Fecha;Tipo;Descripcion;Paciente_Proveedor;Categoria;Cuenta;Centro_Costo;Metodo;Monto;Cotizacion;Motivo_Error\n";
+    filasConErrorCache.forEach(f => {
+        csvContent += `${f.fila};${f.fecha};${f.tipo};${f.descripcion};${f.paciente};${f.categoria};${f.cuenta};${f.centro};${f.metodo};${f.monto_raw};${f.cotizacion};${f.motivo}\n`;
+    });
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'filas_con_error.csv';
+    a.click();
+}
+
 function setTipoTransaccion(tipo) {
     document.getElementById('inputTipoTransaccion').value = tipo;
     let btnIngreso = document.getElementById('btnIngreso');
