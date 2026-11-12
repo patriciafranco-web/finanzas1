@@ -12,7 +12,7 @@
     </div>
 </div>
 
-<!-- Barra de Filtros (Pág. 28: Paciente, Plan, Forma de pago, Cuenta, Vencimiento Desde/Hasta) -->
+<!-- Barra de Filtros -->
 <form method="GET" action="{{ url_for('main.cxc_vista') }}" class="card shadow-sm mb-3 p-3 bg-light" id="cxcFilterForm">
     <div class="row g-2 align-items-center">
         <div class="col-md-3">
@@ -68,198 +68,252 @@
     </div>
 </form>
 
-<!-- Tabla Principal de Cuentas por Cobrar (Pág. 27 y 31) -->
+<!-- Tabla Agrupada por Paciente con Botón Desplegable de Cuotas -->
 <div class="card shadow-sm">
     <div class="card-body p-0 table-responsive">
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>Fecha Emisión</th>
-                    <th>Concepto</th>
                     <th>Cliente / Paciente</th>
-                    <th>Vencimiento</th>
-                    <th>Moneda</th>
-                    <th class="text-end">Total</th>
+                    <th>Resumen de Cuotas</th>
+                    <th class="text-end">Total Acumulado</th>
                     <th class="text-end">Pagado</th>
-                    <th class="text-end">Saldo</th>
-                    <th class="text-center">Estado</th>
-                    <th>Forma de pago</th>
-                    <th>Cuenta</th>
-                    <th class="text-center">Acciones</th>
+                    <th class="text-end">Saldo Pendiente</th>
+                    <th class="text-center">Cuotas Pendientes</th>
+                    <th class="text-center">Acciones / Desplegar</th>
                 </tr>
             </thead>
             <tbody>
-                {% for x in cxc_list %}
-                {% set saldo_x = x.saldo if (x.saldo is not none and x.estado != 'Cancelado') else ((x.monto or 0) - (x.pagado or 0)) %}
-                <tr>
-                    <td>{{ x.fecha_emision.strftime('%d/%m/%Y') if x.fecha_emision else '-' }}</td>
-                    <td class="fw-bold text-dark">{{ x.concepto }}</td>
-                    <td>{{ x.cliente.nombre if x.cliente else 'Particular' }}</td>
-                    <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}</td>
-                    <td><span class="badge bg-secondary-subtle text-dark">{{ x.moneda or 'PYG' }}</span></td>
-                    <td class="text-end fw-bold">₲ {{ "{:,.0f}".format(x.monto or 0).replace(',', '.') }}</td>
-                    <td class="text-end text-success fw-bold">₲ {{ "{:,.0f}".format(x.pagado or 0).replace(',', '.') }}</td>
-                    <td class="text-end {% if saldo_x > 0 %}text-danger{% else %}text-muted{% endif %} fw-bold">
-                        ₲ {{ "{:,.0f}".format(saldo_x).replace(',', '.') }}
-                    </td>
-                    <td class="text-center">
-                        {% if x.estado == 'Pagado' %}
-                            <span class="badge bg-success">Pagado</span>
-                        {% elif x.estado == 'Parcial' %}
-                            <span class="badge bg-info text-dark">Parcial</span>
-                        {% elif x.estado == 'Cancelado' %}
-                            <span class="badge bg-secondary" title="{{ x.motivo_cancelacion or '' }}">Cancelado</span>
-                        {% else %}
-                            <span class="badge bg-warning text-dark">Pendiente</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ x.metodo_pago if (x.pagado or 0) > 0 else '-' }}</td>
-                    <td>{{ x.cuenta_nombre if (x.pagado or 0) > 0 else '-' }}</td>
-                    <td class="text-center">
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                Acciones
+                {% if cxc_list %}
+                    {% for cliente_id, cuotas_grupo in cxc_list | groupby('cliente_id') %}
+                    {% set primer_item = cuotas_grupo[0] %}
+                    {% set cliente_nombre = primer_item.cliente.nombre if primer_item.cliente else 'Particular' %}
+                    {% set activas_grupo = cuotas_grupo | rejectattr('estado', 'equalto', 'Cancelado') | list %}
+                    {% set pendientes_grupo = cuotas_grupo | selectattr('estado', 'in', ['Pendiente', 'Parcial']) | list %}
+                    {% set total_grupo = activas_grupo | sum(attribute='monto') %}
+                    {% set pagado_grupo = cuotas_grupo | sum(attribute='pagado') %}
+                    {% set saldo_grupo = activas_grupo | sum(attribute='saldo') %}
+                    <tr>
+                        <td class="fw-bold text-primary">
+                            <i class="fa-solid fa-user me-1"></i> {{ cliente_nombre }}
+                        </td>
+                        <td>{{ cuotas_grupo | length }} cuota(s) registrada(s)</td>
+                        <td class="text-end fw-bold">₲ {{ "{:,.0f}".format(total_grupo or 0).replace(',', '.') }}</td>
+                        <td class="text-end text-success fw-bold">₲ {{ "{:,.0f}".format(pagado_grupo or 0).replace(',', '.') }}</td>
+                        <td class="text-end {% if saldo_grupo > 0 %}text-danger{% else %}text-muted{% endif %} fw-bold">
+                            ₲ {{ "{:,.0f}".format(saldo_grupo or 0).replace(',', '.') }}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge {% if pendientes_grupo | length > 0 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                {{ pendientes_grupo | length }} pendiente(s)
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-primary fw-bold px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGrupo{{ loop.index }}">
+                                <i class="fa-solid fa-bars-staggered me-1"></i> Ver cuotas ({{ cuotas_grupo | length }}) <i class="fa-solid fa-chevron-down ms-1"></i>
                             </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <!-- 1. Cobrar: disponible en Pendiente y Parcial -->
-                                <li>
-                                    {% if x.estado in ('Pendiente', 'Parcial') and saldo_x > 0 %}
-                                    <button class="dropdown-item text-success fw-bold" type="button"
-                                            data-bs-toggle="modal" data-bs-target="#modalRegistrarCobro"
-                                            data-id="{{ x.id }}"
-                                            data-concepto="{{ x.concepto }}"
-                                            data-vencimiento="{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}"
-                                            data-saldo="{{ saldo_x }}"
-                                            onclick="llenarModalCobro(this)">
-                                        <i class="fa-solid fa-hand-holding-dollar me-1"></i> Cobrar
-                                    </button>
-                                    {% else %}
-                                    <span class="dropdown-item text-muted disabled" title="No disponible en estado {{ x.estado }}">
-                                        <i class="fa-solid fa-hand-holding-dollar me-1"></i> Cobrar
-                                    </span>
-                                    {% endif %}
-                                </li>
+                        </td>
+                    </tr>
 
-                                <!-- 2. Devolver pago: disponible en Parcial y Pagado -->
-                                <li>
-                                    {% if x.estado in ('Parcial', 'Pagado') and (x.pagado or 0) > 0 %}
-                                    <button class="dropdown-item text-warning text-dark" type="button"
-                                            data-bs-toggle="modal" data-bs-target="#modalDevolverCobro{{ x.id }}">
-                                        <i class="fa-solid fa-rotate-left me-1"></i> Devolver pago
-                                    </button>
-                                    {% else %}
-                                    <span class="dropdown-item text-muted disabled" title="Solo disponible cuando la cuota tiene pagos registrados">
-                                        <i class="fa-solid fa-rotate-left me-1"></i> Devolver pago
-                                    </span>
-                                    {% endif %}
-                                </li>
+                    <!-- Fila colapsable con el detalle de las cuotas del paciente -->
+                    <tr class="collapse {% if selected_q or selected_paquete or selected_metodo or selected_cuenta or selected_desde or selected_hasta %}show{% endif %} bg-light" id="collapseGrupo{{ loop.index }}">
+                        <td colspan="7" class="p-3">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered bg-white mb-0 align-middle shadow-sm">
+                                    <thead class="table-secondary">
+                                        <tr>
+                                            <th>Fecha Emisión</th>
+                                            <th>Concepto</th>
+                                            <th>Vencimiento</th>
+                                            <th>Moneda</th>
+                                            <th class="text-end">Total</th>
+                                            <th class="text-end">Pagado</th>
+                                            <th class="text-end">Saldo</th>
+                                            <th class="text-center">Estado</th>
+                                            <th>Forma de pago</th>
+                                            <th>Cuenta</th>
+                                            <th class="text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for x in cuotas_grupo %}
+                                        {% set saldo_x = x.saldo if (x.saldo is not none and x.estado != 'Cancelado') else ((x.monto or 0) - (x.pagado or 0)) %}
+                                        <tr>
+                                            <td>{{ x.fecha_emision.strftime('%d/%m/%Y') if x.fecha_emision else '-' }}</td>
+                                            <td class="fw-bold text-dark">{{ x.concepto }}</td>
+                                            <td>{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}</td>
+                                            <td><span class="badge bg-secondary-subtle text-dark">{{ x.moneda or 'PYG' }}</span></td>
+                                            <td class="text-end fw-bold">₲ {{ "{:,.0f}".format(x.monto or 0).replace(',', '.') }}</td>
+                                            <td class="text-end text-success fw-bold">₲ {{ "{:,.0f}".format(x.pagado or 0).replace(',', '.') }}</td>
+                                            <td class="text-end {% if saldo_x > 0 %}text-danger{% else %}text-muted{% endif %} fw-bold">
+                                                ₲ {{ "{:,.0f}".format(saldo_x).replace(',', '.') }}
+                                            </td>
+                                            <td class="text-center">
+                                                {% if x.estado == 'Pagado' %}
+                                                    <span class="badge bg-success">Pagado</span>
+                                                {% elif x.estado == 'Parcial' %}
+                                                    <span class="badge bg-info text-dark">Parcial</span>
+                                                {% elif x.estado == 'Cancelado' %}
+                                                    <span class="badge bg-secondary" title="{{ x.motivo_cancelacion or '' }}">Cancelado</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ x.metodo_pago if (x.pagado or 0) > 0 else '-' }}</td>
+                                            <td>{{ x.cuenta_nombre if (x.pagado or 0) > 0 else '-' }}</td>
+                                            <td class="text-center">
+                                                <div class="dropdown">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                        Acciones
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <!-- 1. Cobrar -->
+                                                        <li>
+                                                            {% if x.estado in ('Pendiente', 'Parcial') and saldo_x > 0 %}
+                                                            <button class="dropdown-item text-success fw-bold" type="button"
+                                                                    data-bs-toggle="modal" data-bs-target="#modalRegistrarCobro"
+                                                                    data-id="{{ x.id }}"
+                                                                    data-concepto="{{ x.concepto }}"
+                                                                    data-vencimiento="{{ x.fecha_vencimiento.strftime('%d/%m/%Y') if x.fecha_vencimiento else '-' }}"
+                                                                    data-saldo="{{ saldo_x }}"
+                                                                    onclick="llenarModalCobro(this)">
+                                                                <i class="fa-solid fa-hand-holding-dollar me-1"></i> Cobrar
+                                                            </button>
+                                                            {% else %}
+                                                            <span class="dropdown-item text-muted disabled">
+                                                                <i class="fa-solid fa-hand-holding-dollar me-1"></i> Cobrar
+                                                            </span>
+                                                            {% endif %}
+                                                        </li>
 
-                                <!-- 3. Cancelar: solo cuando Pagado = 0 y está Pendiente -->
-                                <li>
-                                    {% if x.estado == 'Pendiente' and (x.pagado or 0) == 0 %}
-                                    <button class="dropdown-item text-danger" type="button"
-                                            data-bs-toggle="modal" data-bs-target="#modalCancelarCuota{{ x.id }}">
-                                        <i class="fa-solid fa-ban me-1"></i> Cancelar
-                                    </button>
-                                    {% else %}
-                                    <span class="dropdown-item text-muted disabled" title="Devuelva los pagos antes de cancelar">
-                                        <i class="fa-solid fa-ban me-1"></i> Cancelar (devolver antes)
-                                    </span>
-                                    {% endif %}
-                                </li>
-                            </ul>
-                        </div>
-                    </td>
-                </tr>
+                                                        <!-- 2. Devolver pago -->
+                                                        <li>
+                                                            {% if x.estado in ('Parcial', 'Pagado') and (x.pagado or 0) > 0 %}
+                                                            <button class="dropdown-item text-warning text-dark" type="button"
+                                                                    data-bs-toggle="modal" data-bs-target="#modalDevolverCobro{{ x.id }}">
+                                                                <i class="fa-solid fa-rotate-left me-1"></i> Devolver pago
+                                                            </button>
+                                                            {% else %}
+                                                            <span class="dropdown-item text-muted disabled">
+                                                                <i class="fa-solid fa-rotate-left me-1"></i> Devolver pago
+                                                            </span>
+                                                            {% endif %}
+                                                        </li>
 
-                <!-- Modal Devolver Pago (Pág. 32) -->
-                <div class="modal fade" id="modalDevolverCobro{{ x.id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <form action="{{ url_for('main.devolver_cobro_cxc', id=x.id) }}" method="POST">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-rotate-left me-1"></i> Devolver pago</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <p class="small text-muted mb-2">Cuota: <strong>{{ x.concepto }}</strong></p>
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Pago a devolver</label>
-                                        <select class="form-select" name="transaccion_id">
-                                            {% for p_tx in x.pagos if p_tx.tipo == 'Ingreso' and not p_tx.es_devolucion %}
-                                            <option value="{{ p_tx.id }}">
-                                                {{ p_tx.fecha.strftime('%d/%m/%Y') }} - {{ p_tx.moneda }} {{ "{:,.2f}".format(p_tx.monto) if p_tx.moneda != 'PYG' else "{:,.0f}".format(p_tx.monto).replace(',', '.') }} ({{ p_tx.cuenta.nombre if p_tx.cuenta else 'Caja' }})
-                                            </option>
-                                            {% else %}
-                                            <option value="">Pago registrado - ₲ {{ "{:,.0f}".format(x.pagado or 0).replace(',', '.') }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label fw-bold">Fecha de la devolución</label>
-                                            <input type="date" class="form-control" name="fecha_devolucion" value="{{ hoy_str }}" required>
-                                        </div>
-                                        <div class="col-md-6 mb-3">
-                                            <label class="form-label fw-bold">Monto a devolver</label>
-                                            <input type="number" step="any" class="form-control" name="monto_devolver" value="{{ x.pagado or 0 }}" required>
-                                        </div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Cuenta de salida</label>
-                                        <select class="form-select" name="cuenta_id" required>
-                                            {% for c in cuentas %}
-                                            <option value="{{ c.id }}" {% if x.cuenta_id == c.id %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
-                                        <input type="text" class="form-control" name="motivo" required placeholder="Ej: Cobro duplicado / Devolución al paciente">
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                    <button type="submit" class="btn btn-warning fw-bold">Confirmar devolución</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Modal Cancelar Cuota (Pág. 32) -->
-                <div class="modal fade" id="modalCancelarCuota{{ x.id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <form action="{{ url_for('main.cancelar_cuota_cxc', id=x.id) }}" method="POST">
-                                <div class="modal-header bg-danger text-white">
-                                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-ban me-1"></i> Cancelar cuota</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <p>¿Cancelar <strong>{{ x.concepto }}</strong>? La cuota dejará de contar en el saldo pendiente de la venta.</p>
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
-                                        <input type="text" class="form-control" name="motivo" required placeholder="Ej: Plan renegociado">
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Volver</button>
-                                    <button type="submit" class="btn btn-danger fw-bold">Cancelar cuota</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                                                        <!-- 3. Cancelar -->
+                                                        <li>
+                                                            {% if x.estado == 'Pendiente' and (x.pagado or 0) == 0 %}
+                                                            <button class="dropdown-item text-danger" type="button"
+                                                                    data-bs-toggle="modal" data-bs-target="#modalCancelarCuota{{ x.id }}">
+                                                                <i class="fa-solid fa-ban me-1"></i> Cancelar
+                                                            </button>
+                                                            {% else %}
+                                                            <span class="dropdown-item text-muted disabled" title="Devuelva los pagos antes de cancelar">
+                                                                <i class="fa-solid fa-ban me-1"></i> Cancelar (devolver antes)
+                                                            </span>
+                                                            {% endif %}
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
                 {% else %}
-                <tr><td colspan="12" class="text-center py-4 text-muted">No hay cuentas por cobrar que coincidan con los filtros.</td></tr>
-                {% endfor %}
+                    <tr><td colspan="7" class="text-center py-4 text-muted">No hay cuentas por cobrar que coincidan con los filtros.</td></tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- Modal Registrar Cobro de Cuota (Págs. 29, 30 y 33: Moneda filtra cuentas + Monto calculado solo) -->
+<!-- Modales individuales de Devolver Pago y Cancelar Cuota -->
+{% for x in cxc_list %}
+<div class="modal fade" id="modalDevolverCobro{{ x.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('main.devolver_cobro_cxc', id=x.id) }}" method="POST">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-rotate-left me-1"></i> Devolver pago</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2">Cuota: <strong>{{ x.concepto }}</strong></p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Pago a devolver</label>
+                        <select class="form-select" name="transaccion_id">
+                            {% for p_tx in x.pagos if p_tx.tipo == 'Ingreso' and not p_tx.es_devolucion %}
+                            <option value="{{ p_tx.id }}">
+                                {{ p_tx.fecha.strftime('%d/%m/%Y') }} - {{ p_tx.moneda }} {{ "{:,.2f}".format(p_tx.monto) if p_tx.moneda != 'PYG' else "{:,.0f}".format(p_tx.monto).replace(',', '.') }} ({{ p_tx.cuenta.nombre if p_tx.cuenta else 'Caja' }})
+                            </option>
+                            {% else %}
+                            <option value="">Pago registrado - ₲ {{ "{:,.0f}".format(x.pagado or 0).replace(',', '.') }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Fecha de la devolución</label>
+                            <input type="date" class="form-control" name="fecha_devolucion" value="{{ hoy_str }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Monto a devolver</label>
+                            <input type="number" step="any" class="form-control" name="monto_devolver" value="{{ x.pagado or 0 }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cuenta de salida</label>
+                        <select class="form-select" name="cuenta_id" required>
+                            {% for c in cuentas %}
+                            <option value="{{ c.id }}" {% if x.cuenta_id == c.id %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
+                        <input type="text" class="form-control" name="motivo" required placeholder="Ej: Cobro duplicado / Devolución al paciente">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning fw-bold">Confirmar devolución</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCancelarCuota{{ x.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('main.cancelar_cuota_cxc', id=x.id) }}" method="POST">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-ban me-1"></i> Cancelar cuota</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>¿Cancelar <strong>{{ x.concepto }}</strong>? La cuota dejará de contar en el saldo pendiente de la venta.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Motivo (obligatorio)</label>
+                        <input type="text" class="form-control" name="motivo" required placeholder="Ej: Plan renegociado">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Volver</button>
+                    <button type="submit" class="btn btn-danger fw-bold">Cancelar cuota</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Modal Registrar Cobro de Cuota -->
 <div class="modal fade" id="modalRegistrarCobro" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -385,7 +439,6 @@ function cambiarMonedaCobro() {
         cotInput.value = moneda === 'USD' ? 7500 : 1400;
     }
 
-    // Filtrar cuentas por la moneda elegida (Pág. 29)
     let primera = null;
     let visibles = 0;
     Array.from(selectCuenta.options).forEach(opt => {
@@ -412,7 +465,6 @@ function cambiarMonedaCobro() {
 }
 
 function recalcularMontoSugeridoCobro() {
-    // Pág. 30: Monto Recibido = (Saldo Cuota - Descuento) ÷ Cotización
     const moneda = document.getElementById('monedaCobro').value;
     const saldoBase = parseFloat(document.getElementById('cobroSaldoBaseGs').value) || 0;
     const descuento = parseFloat(document.getElementById('inputDescuentoCobro').value) || 0;
