@@ -183,7 +183,7 @@
                 </tr>
 
                 <!-- Modal Devolver Pago CxP -->
-                <div class="modal fade" id="modalDevolverCxP{{ p.id }}" tabindex="-1">
+                <div class="modal fade modal-devolver-cxp" id="modalDevolverCxP{{ p.id }}" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <form action="{{ url_for('main.devolver_pago_cxp', id=p.id) }}" method="POST">
@@ -193,21 +193,35 @@
                                 </div>
                                 <div class="modal-body">
                                     <p class="small text-muted mb-2">Compromiso: <strong>{{ p.concepto }} ({{ p.proveedor }})</strong></p>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Pago a devolver</label>
+                                        <select class="form-select select-pago-devolver-cxp" name="transaccion_id" onchange="filtrarCuentasDevolucionCxP(this)">
+                                            {% for p_tx in p.pagos if p_tx.tipo == 'Salida' and not p_tx.es_devolucion %}
+                                            <option value="{{ p_tx.id }}" data-moneda="{{ p_tx.moneda or mon_p }}" data-monto="{{ p_tx.monto }}" data-cuenta="{{ p_tx.cuenta_id or '' }}">
+                                                {{ p_tx.fecha.strftime('%d/%m/%Y') }} - {{ p_tx.moneda }} {{ "{:,.2f}".format(p_tx.monto) if p_tx.moneda != 'PYG' else "{:,.0f}".format(p_tx.monto).replace(',', '.') }} ({{ p_tx.cuenta.nombre if p_tx.cuenta else 'Caja' }})
+                                            </option>
+                                            {% else %}
+                                            <option value="" data-moneda="{{ mon_p }}" data-monto="{{ p.pagado or 0 }}" data-cuenta="{{ p.cuenta_id or '' }}">
+                                                Pago registrado - {{ simb_p }} {{ "{:,.0f}".format(p.pagado or 0).replace(',', '.') }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label fw-bold">Fecha de devolución</label>
                                             <input type="date" class="form-control" name="fecha_devolucion" value="{{ hoy_str }}" required>
                                         </div>
                                         <div class="col-md-6 mb-3">
-                                            <label class="form-label fw-bold">Monto devuelto</label>
-                                            <input type="number" step="any" class="form-control" name="monto_devolver" value="{{ p.pagado or 0 }}" required>
+                                            <label class="form-label fw-bold label-monto-devolver-cxp">Monto devuelto</label>
+                                            <input type="number" step="any" class="form-control input-monto-devolver-cxp" name="monto_devolver" value="{{ p.pagado or 0 }}" required>
                                         </div>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label fw-bold">Cuenta donde reingresa el dinero</label>
-                                        <select class="form-select" name="cuenta_id" required>
+                                        <label class="form-label fw-bold">Cuenta donde reingresa el dinero (misma moneda del pago)</label>
+                                        <select class="form-select select-cuenta-devolucion-cxp" name="cuenta_id" required>
                                             {% for c in cuentas %}
-                                            <option value="{{ c.id }}" {% if p.cuenta_id == c.id %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
+                                            <option value="{{ c.id }}" data-moneda="{{ c.moneda }}" {% if p.cuenta_id == c.id %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
                                             {% endfor %}
                                         </select>
                                     </div>
@@ -278,7 +292,7 @@
                     <div class="row">
                         <div class="col-md-3 mb-3">
                             <label class="form-label fw-bold">Fecha del pago</label>
-                            <input type="date" class="form-control" name="fecha_pago" value="{{ hoy_str }}" required>
+                            <input type="date" class="form-control" name="fecha_pago" id="fechaPagoCxP" value="{{ hoy_str }}" required>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label fw-bold">Moneda del Pago</label>
@@ -319,7 +333,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success fw-bold px-4">Confirmar Pago</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4" id="btnSubmitPagoCxP">Confirmar Pago</button>
                 </div>
             </form>
         </div>
@@ -408,6 +422,89 @@
 </div>
 
 <script>
+const BLOQUEOS_ACTIVOS_CXP = [
+    {% for b in bloqueos_activos %}
+    {
+        desde: "{{ b.fecha_desde.strftime('%Y-%m-%d') if b.fecha_desde else '' }}",
+        hasta: "{{ b.fecha_hasta.strftime('%Y-%m-%d') if b.fecha_hasta else '' }}",
+        desde_fmt: "{{ b.fecha_desde.strftime('%d/%m/%Y') if b.fecha_desde else b.periodo }}",
+        hasta_fmt: "{{ b.fecha_hasta.strftime('%d/%m/%Y') if b.fecha_hasta else '' }}",
+        cuenta_id: {{ b.cuenta_id if b.cuenta_id else 'null' }},
+        cuenta_nombre: "{{ b.cuenta.nombre if b.cuenta else 'Todas las cuentas' }}"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+function evaluarBloqueoCxP(fechaStr, cuentaId) {
+    if (!fechaStr) return null;
+    for (const b of BLOQUEOS_ACTIVOS_CXP) {
+        if (b.desde && b.hasta && fechaStr >= b.desde && fechaStr <= b.hasta) {
+            if (b.cuenta_id === null || String(b.cuenta_id) === String(cuentaId)) {
+                return `Período bloqueado (${b.desde_fmt} - ${b.hasta_fmt}, ${b.cuenta_nombre}). No se puede registrar con esta fecha. Elija otra fecha o pida a un administrador que desbloquee el período.`;
+            }
+        }
+    }
+    return null;
+}
+
+function verificarBloqueoEnModalCxP(modal) {
+    if (!modal) return;
+    const fInput = modal.querySelector('input[name="fecha_pago"], input[name="fecha_devolucion"]');
+    const cSelect = modal.querySelector('select[name="cuenta_id"]');
+    const btnSubmit = modal.querySelector('button[type="submit"]');
+    if (!fInput || !cSelect) return;
+
+    let aviso = modal.querySelector('.aviso-bloqueo-cxp-vivo');
+    if (!aviso) {
+        aviso = document.createElement('div');
+        aviso.className = 'alert alert-danger py-2 px-3 mt-2 mb-0 small fw-bold aviso-bloqueo-cxp-vivo';
+        modal.querySelector('.modal-body').appendChild(aviso);
+    }
+
+    const msg = evaluarBloqueoCxP(fInput.value, cSelect.value);
+    if (msg) {
+        aviso.style.display = 'block';
+        aviso.textContent = msg;
+        if (btnSubmit) btnSubmit.disabled = true;
+    } else {
+        aviso.style.display = 'none';
+        if (btnSubmit) btnSubmit.disabled = false;
+    }
+}
+
+function filtrarCuentasDevolucionCxP(selectPago) {
+    const modal = selectPago.closest('.modal');
+    if (!modal) return;
+    const opt = selectPago.options[selectPago.selectedIndex];
+    const monedaPago = opt ? (opt.getAttribute('data-moneda') || 'PYG') : 'PYG';
+    const montoOrig = opt ? (parseFloat(opt.getAttribute('data-monto')) || 0) : 0;
+    const cuentaOrig = opt ? opt.getAttribute('data-cuenta') : '';
+
+    const montoInput = modal.querySelector('.input-monto-devolver-cxp');
+    const labelMonto = modal.querySelector('.label-monto-devolver-cxp');
+    const selectCuenta = modal.querySelector('.select-cuenta-devolucion-cxp');
+
+    const simbolos = {'PYG': '₲', 'USD': 'US$', 'BRL': 'R$'};
+    if (labelMonto) labelMonto.textContent = `Monto devuelto (${simbolos[monedaPago] || monedaPago})`;
+    if (montoInput) montoInput.value = monedaPago === 'PYG' ? Math.round(montoOrig) : montoOrig.toFixed(2);
+
+    if (selectCuenta) {
+        let primera = null;
+        Array.from(selectCuenta.options).forEach(o => {
+            if (o.getAttribute('data-moneda') === monedaPago) {
+                o.hidden = false;
+                o.disabled = false;
+                if (!primera) primera = o.value;
+            } else {
+                o.hidden = true;
+                o.disabled = true;
+            }
+        });
+        selectCuenta.value = (cuentaOrig && !selectCuenta.querySelector(`option[value="${cuentaOrig}"]`)?.disabled) ? cuentaOrig : (primera || '');
+    }
+    verificarBloqueoEnModalCxP(modal);
+}
+
 function abrirModalPagoCxP(btn) {
     const id = btn.getAttribute('data-id');
     const prov = btn.getAttribute('data-proveedor');
@@ -450,6 +547,7 @@ function filtrarCuentasPagoCxP() {
     });
     sel.value = primera || '';
     recalcularMontoPagoCxP();
+    verificarBloqueoEnModalCxP(document.getElementById('modalPagarCxP'));
 }
 
 function recalcularMontoPagoCxP() {
@@ -464,6 +562,13 @@ function recalcularMontoPagoCxP() {
         montoInput.value = cot > 0 ? (saldoBase / cot).toFixed(2) : saldoBase;
     }
 }
+
+document.addEventListener('change', function(e) {
+    const modal = e.target.closest('.modal');
+    if (modal) {
+        verificarBloqueoEnModalCxP(modal);
+    }
+});
 
 document.addEventListener('input', function(e) {
     if (e.target.classList.contains('moneda-input')) {
@@ -491,6 +596,8 @@ function limpiarFormatoCxP() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll('.select-pago-devolver-cxp').forEach(sel => filtrarCuentasDevolucionCxP(sel));
+
     const form = document.getElementById('cxpFilterForm');
     if (form) {
         form.querySelectorAll('select, input[type="date"]').forEach(function(el) {
