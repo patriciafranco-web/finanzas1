@@ -374,7 +374,7 @@
         </div>
     </div>
 
-    <!-- 5. PLANOS Y PAQUETES (Pág. 25: Botón + Agregar servicio en Editar Plan + Costo Total calculado) -->
+    <!-- 5. PLANOS Y PAQUETES (Pág. 25: Botón + Agregar servicio + Columna Costo Total + Costo Total calculado) -->
     <div class="tab-pane fade" id="tab-paquetes">
         <div class="d-flex justify-content-between mb-3">
             <h5>Planos y Paquetes Médicos</h5>
@@ -437,17 +437,18 @@
 
                                             <h6 class="fw-bold text-secondary mt-3 mb-2">Servicios Incluidos</h6>
                                             <div class="row text-muted small fw-bold mb-1 px-1">
-                                                <div class="col-md-5">Servicio</div>
-                                                <div class="col-md-2">Cantidad</div>
-                                                <div class="col-md-2">Costo Unitario (₲)</div>
-                                                <div class="col-md-2">Reparto Adicional (%)</div>
+                                                <div class="col-md-4">Servicio</div>
+                                                <div class="col-md-2">Cant.</div>
+                                                <div class="col-md-2">Costo unit. (₲)</div>
+                                                <div class="col-md-1">Reparto %</div>
+                                                <div class="col-md-2 text-end">Costo total</div>
                                                 <div class="col-md-1"></div>
                                             </div>
 
                                             <div id="contenedor-editar-paquete-{{ p.id }}" class="contenedor-items-editar">
                                                 {% for item in p.items %}
-                                                <div class="row item-row mb-2 align-items-end">
-                                                    <div class="col-md-5">
+                                                <div class="row item-row mb-2 align-items-center">
+                                                    <div class="col-md-4">
                                                         <select name="servicio_id[]" class="form-select form-select-sm" onchange="autocompletarDatosServicio(this)" required>
                                                             <option value="">Seleccione servicio...</option>
                                                             {% for s in servicios %}
@@ -462,11 +463,14 @@
                                                         {% set costo_item_val = item.costo_unitario if (item.costo_unitario or 0) > 0 else (item.servicio.costo_unitario if (item.servicio and item.servicio.costo_unitario) else 0) %}
                                                         <input type="text" name="costo_unitario[]" class="form-control form-control-sm costo-input moneda-input" value="{{ '{:,.0f}'.format(costo_item_val).replace(',', '.') }}" required>
                                                     </div>
-                                                    <div class="col-md-2">
+                                                    <div class="col-md-1">
                                                         <input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm reparto-input" value="{{ item.reparto_adicional or 0 }}">
                                                     </div>
-                                                    <div class="col-md-1">
-                                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button>
+                                                    <div class="col-md-2 text-end fw-bold text-secondary subtotal-item-col">
+                                                        ₲ {{ "{:,.0f}".format(item.costo_total_item or 0).replace(',', '.') }}
+                                                    </div>
+                                                    <div class="col-md-1 text-end">
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="let m = this.closest('.modal'); this.closest('.row').remove(); recalcularCostosModalPaquete(m);"><i class="fa-solid fa-trash"></i></button>
                                                     </div>
                                                 </div>
                                                 {% endfor %}
@@ -476,8 +480,8 @@
                                                 <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="agregarFilaEditarPaquete({{ p.id }})">
                                                     <i class="fa-solid fa-plus me-1"></i> Agregar servicio
                                                 </button>
-                                                <div class="fw-bold text-danger">
-                                                    Costo total del plan: ₲ {{ "{:,.0f}".format(costo_total_p or 0).replace(',', '.') }}
+                                                <div class="fw-bold text-danger lbl-costo-total-plan">
+                                                    Costo total del plan (calculado): ₲ {{ "{:,.0f}".format(costo_total_p or 0).replace(',', '.') }}
                                                 </div>
                                             </div>
                                             <small class="text-muted d-block mt-2">
@@ -734,22 +738,23 @@
                     <div class="row">
                         <div class="col-md-6 mb-3"><label class="form-label fw-bold">Nombre del Plan</label><input type="text" class="form-control" name="nombre" required placeholder="Programa Reducido - PRP"></div>
                         <div class="col-md-3 mb-3"><label class="form-label fw-bold">Precio Total (₲)</label><input type="text" class="form-control moneda-input" name="precio" required placeholder="1.000.000"></div>
-                        <div class="col-md-3 mb-3"><label class="form-label fw-bold">Duración (Meses)</label><input type="number" class="form-control" name="duracion_meses" value="4" required></div>
+                        <div class="col-md-3 mb-3"><label class="form-label fw-bold">Duración (Meses)</label><input type="number" class="form-control" name="duracion_meses" value="0" required></div>
                     </div>
                     
                     <h6 class="fw-bold text-secondary mt-3 mb-2">Servicios Incluidos</h6>
                     
                     <div class="row text-muted small fw-bold mb-1 px-1">
-                        <div class="col-md-5">Servicio</div>
-                        <div class="col-md-2">Cantidad</div>
-                        <div class="col-md-2">Costo Unitario (₲)</div>
-                        <div class="col-md-2">Reparto Adicional (%)</div>
+                        <div class="col-md-4">Servicio</div>
+                        <div class="col-md-2">Cant.</div>
+                        <div class="col-md-2">Costo unit. (₲)</div>
+                        <div class="col-md-1">Reparto %</div>
+                        <div class="col-md-2 text-end">Costo total</div>
                         <div class="col-md-1"></div>
                     </div>
 
                     <div id="contenedor-items-paquete">
-                        <div class="row item-row mb-2 align-items-end">
-                            <div class="col-md-5">
+                        <div class="row item-row mb-2 align-items-center">
+                            <div class="col-md-4">
                                 <select name="servicio_id[]" class="form-select form-select-sm" onchange="autocompletarDatosServicio(this)" required>
                                     <option value="">Seleccione servicio...</option>
                                     {% for s in servicios %}
@@ -759,11 +764,19 @@
                             </div>
                             <div class="col-md-2"><input type="number" name="cantidad[]" class="form-control form-control-sm" value="1" min="1" required></div>
                             <div class="col-md-2"><input type="text" name="costo_unitario[]" class="form-control form-control-sm costo-input moneda-input" value="0" required></div>
-                            <div class="col-md-2"><input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm reparto-input" value="0"></div>
-                            <div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button></div>
+                            <div class="col-md-1"><input type="number" step="any" name="reparto_adicional[]" class="form-control form-control-sm reparto-input" value="0"></div>
+                            <div class="col-md-2 text-end fw-bold text-secondary subtotal-item-col">₲ 0</div>
+                            <div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger" onclick="let m = this.closest('.modal'); this.closest('.row').remove(); recalcularCostosModalPaquete(m);"><i class="fa-solid fa-trash"></i></button></div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="agregarFilaItem()"><i class="fa-solid fa-plus me-1"></i> Agregar servicio</button>
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                        <button type="button" class="btn btn-sm btn-outline-success fw-bold" onclick="agregarFilaItem()">
+                            <i class="fa-solid fa-plus me-1"></i> Agregar servicio
+                        </button>
+                        <div class="fw-bold text-danger lbl-costo-total-plan">
+                            Costo total del plan (calculado): ₲ 0
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-success fw-bold">Guardar Paquete</button></div>
             </form>
@@ -810,7 +823,10 @@ function agregarFilaItem() {
     const nuevaFila = primeraFila.cloneNode(true);
     nuevaFila.querySelectorAll('input').forEach(input => input.value = input.name.includes('cantidad') ? '1' : '0');
     nuevaFila.querySelector('select').selectedIndex = 0;
+    const subCol = nuevaFila.querySelector('.subtotal-item-col');
+    if (subCol) subCol.textContent = '₲ 0';
     contenedor.appendChild(nuevaFila);
+    recalcularCostosModalPaquete(contenedor.closest('.modal'));
 }
 
 function agregarFilaEditarPaquete(paqId) {
@@ -820,7 +836,10 @@ function agregarFilaEditarPaquete(paqId) {
         const nuevaFila = plantilla.cloneNode(true);
         nuevaFila.querySelectorAll('input').forEach(input => input.value = input.name.includes('cantidad') ? '1' : '0');
         nuevaFila.querySelector('select').selectedIndex = 0;
+        const subCol = nuevaFila.querySelector('.subtotal-item-col');
+        if (subCol) subCol.textContent = '₲ 0';
         contenedor.appendChild(nuevaFila);
+        recalcularCostosModalPaquete(contenedor.closest('.modal'));
     }
 }
 
@@ -839,6 +858,30 @@ function autocompletarDatosServicio(select) {
     if (inputReparto) {
         inputReparto.value = reparto;
     }
+    recalcularCostosModalPaquete(select.closest('.modal'));
+}
+
+function recalcularCostosModalPaquete(modal) {
+    if (!modal) return;
+    let sumaTotalPlan = 0;
+    modal.querySelectorAll('.item-row').forEach(row => {
+        const cant = parseFloat(row.querySelector('input[name="cantidad[]"]')?.value) || 0;
+        const costoStr = (row.querySelector('input[name="costo_unitario[]"]')?.value || '0').replace(/\./g, '').replace(',', '.');
+        const costoUnit = parseFloat(costoStr) || 0;
+        const reparto = parseFloat(row.querySelector('input[name="reparto_adicional[]"]')?.value) || 0;
+        const subTotal = Math.round(cant * costoUnit * (1 + (reparto / 100.0)));
+        sumaTotalPlan += subTotal;
+
+        const colSub = row.querySelector('.subtotal-item-col');
+        if (colSub) {
+            colSub.textContent = '₲ ' + subTotal.toLocaleString('es-PY');
+        }
+    });
+
+    const lblTotal = modal.querySelector('.lbl-costo-total-plan');
+    if (lblTotal) {
+        lblTotal.textContent = 'Costo total del plan (calculado): ₲ ' + sumaTotalPlan.toLocaleString('es-PY');
+    }
 }
 
 function formatearConPuntos(input) {
@@ -855,6 +898,10 @@ document.addEventListener('input', function (e) {
     if (e.target.classList.contains('moneda-input') || e.target.classList.contains('costo-input')) {
         formatearConPuntos(e.target);
     }
+    const modal = e.target.closest('.modal');
+    if (modal && (modal.id === 'modalPaquete' || modal.id.startsWith('modalEditarPaquete'))) {
+        recalcularCostosModalPaquete(modal);
+    }
 });
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -862,6 +909,10 @@ document.addEventListener("DOMContentLoaded", function () {
         if (input.value) {
             formatearConPuntos(input);
         }
+    });
+
+    document.querySelectorAll('#modalPaquete, [id^="modalEditarPaquete"]').forEach(m => {
+        recalcularCostosModalPaquete(m);
     });
 
     let activeTab = localStorage.getItem('activeCadastrosTab');
