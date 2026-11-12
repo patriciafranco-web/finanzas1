@@ -3,39 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acceso - ClínicaFin ERP</title>
+    <title>AeternaFin - Acceso al Sistema</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #7A1C2E;     /* Borgoña / Vino tinto principal Aeterna */
+            --primary-hover: #631422;    /* Borgoña oscuro para hover */
+            --border-color: #E2D2D5;     /* Bordes suaves tono borgoña claro */
+            --body-bg: #F8F9FA;          /* Fondo general muy suave */
+        }
+
+        body {
+            background-color: var(--body-bg);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .login-card {
+            max-width: 420px;
+            width: 100%;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 0.5rem 1rem rgba(122, 28, 46, 0.08);
+            border-radius: 12px;
+            background: #FFFFFF;
+            padding: 30px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .login-header h3 {
+            color: var(--primary-color);
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover) !important;
+            border-color: var(--primary-hover) !important;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(122, 28, 46, 0.15);
+        }
+    </style>
 </head>
-<body class="bg-light d-flex align-items-center justify-content-center vh-100">
-    <div class="card shadow-sm p-4" style="width: 100%; max-width: 400px;">
-        <div class="text-center mb-4">
-            <h3 class="fw-bold text-primary"><i class="fa-solid fa-hospital-user me-2"></i>ClínicaFin</h3>
-            <p class="text-muted">Sistema Financiero y ERP Multimoneda</p>
+<body>
+
+    <div class="login-card">
+        <div class="login-header">
+            <i class="fa-solid fa-hospital-user fa-3x mb-2" style="color: #7A1C2E;"></i>
+            <h3>AeternaFin</h3>
+            <p class="text-muted small">Sistema Financiero y ERP Multimoneda</p>
         </div>
-        
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-danger py-2">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
 
         <form method="POST">
             <div class="mb-3">
-                <label class="form-label">Usuario</label>
-                <input type="text" class="form-control" name="username" required placeholder="Ej: admin">
+                <label class="form-label fw-bold small text-secondary">Usuario</label>
+                <input type="text" class="form-control" name="username" required placeholder="Ingrese su usuario">
             </div>
-            <div class="mb-3">
-                <label class="form-label">Contraseña</label>
+            <div class="mb-4">
+                <label class="form-label fw-bold small text-secondary">Contraseña</label>
                 <input type="password" class="form-control" name="password" required placeholder="••••••••">
             </div>
-            <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">Iniciar Sesión</button>
+            <button type="submit" class="btn btn-primary w-100 py-2">Iniciar Sesión</button>
         </form>
-        <div class="text-center mt-3">
-            <small class="text-muted">Acceso de prueba: <strong>admin</strong> / <strong>clinica2026</strong></small>
-        </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
