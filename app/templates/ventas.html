@@ -1,47 +1,77 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
         <h2>Módulo de Ventas de Planes y Paquetes</h2>
         <p class="text-muted mb-0">Registro de ventas, formas de pago, cuotas automáticas en CxC y análisis de márgenes</p>
     </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalVenta"><i class="fa-solid fa-plus me-1"></i> Nueva Venta</button>
-</div>
-
-<!-- Filtros de Búsqueda y Botón Excel -->
-<div class="card shadow-sm mb-4">
-    <div class="card-body">
-        <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label small fw-bold text-muted">Buscar Paciente / Cliente</label>
-                <input type="text" class="form-control form-control-sm" name="q" value="{{ selected_q }}" placeholder="Nombre del paciente...">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small fw-bold text-muted">Filtrar por Plan</label>
-                <select class="form-select form-select-sm" name="paquete_id">
-                    <option value="">Todos los planes</option>
-                    {% for p in paquetes %}
-                    <option value="{{ p.id }}" {% if selected_paquete == p.id %}selected{% endif %}>{{ p.nombre }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold text-muted">Desde</label>
-                <input type="date" class="form-control form-control-sm" name="fecha_desde" value="{{ selected_desde }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small fw-bold text-muted">Hasta</label>
-                <input type="date" class="form-control form-control-sm" name="fecha_hasta" value="{{ selected_hasta }}">
-            </div>
-            <div class="col-md-2 d-flex gap-1">
-                <button type="submit" class="btn btn-sm btn-primary w-100 fw-bold"><i class="fa-solid fa-filter me-1"></i> Filtrar</button>
-                <a href="{{ url_for('main.exportar_ventas_excel', q=selected_q, paquete_id=selected_paquete, fecha_desde=selected_desde, fecha_hasta=selected_hasta) }}" class="btn btn-sm btn-success w-100 fw-bold" title="Exportar a Excel"><i class="fa-solid fa-file-excel me-1"></i> Excel</a>
-            </div>
-        </form>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('main.exportar_ventas_excel', q=selected_q, paquete_id=selected_paquete or '', forma_pago=selected_forma_pago or '', cuenta_nombre=selected_cuenta_nombre or '', fecha_desde=selected_desde, fecha_hasta=selected_hasta) }}" class="btn btn-outline-success fw-bold">
+            <i class="fa-solid fa-file-excel me-1"></i> Exportar Excel
+        </a>
+        <button class="btn btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#modalVenta">
+            <i class="fa-solid fa-plus me-1"></i> Nueva Venta
+        </button>
     </div>
 </div>
 
-<!-- TABLA PRINCIPAL DE 12 COLUMNAS -->
+<!-- Barra de Filtros (Pág. 15: Paciente, Plan, Forma de pago, Cuenta, Desde/Hasta y Limpiar) -->
+<form method="GET" action="{{ url_for('main.ventas_vista') }}" class="card shadow-sm mb-3 p-3 bg-light" id="ventasFilterForm">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white"><i class="fa-solid fa-search"></i></span>
+                <input type="text" class="form-control" name="q" value="{{ selected_q }}" placeholder="Buscar paciente...">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" name="paquete_id">
+                <option value="">Todos los planes</option>
+                {% for p in paquetes %}
+                <option value="{{ p.id }}" {% if selected_paquete == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" name="forma_pago">
+                <option value="">Todas las formas de pago</option>
+                <option value="Efectivo" {% if selected_forma_pago == 'Efectivo' %}selected{% endif %}>Efectivo</option>
+                <option value="Transferencia" {% if selected_forma_pago == 'Transferencia' %}selected{% endif %}>Transferencia</option>
+                <option value="Tarjeta" {% if selected_forma_pago == 'Tarjeta' or selected_forma_pago == 'Crédito' %}selected{% endif %}>Tarjeta</option>
+                <option value="Cuotas (CxC)" {% if selected_forma_pago == 'Cuotas (CxC)' %}selected{% endif %}>Cuotas (CxC)</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select form-select-sm" name="cuenta_nombre">
+                <option value="">Todas las cuentas</option>
+                {% for c in cuentas %}
+                <option value="{{ c.nombre }}" {% if selected_cuenta_nombre == c.nombre %}selected{% endif %}>{{ c.nombre }} ({{ c.moneda }})</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="row g-2 align-items-center mt-1">
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">Desde</span>
+                <input type="date" class="form-control" name="fecha_desde" value="{{ selected_desde }}">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">Hasta</span>
+                <input type="date" class="form-control" name="fecha_hasta" value="{{ selected_hasta }}">
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{{ url_for('main.ventas_vista') }}" class="btn btn-outline-dark btn-sm">
+                <i class="fa-solid fa-xmark me-1"></i> Limpiar
+            </a>
+        </div>
+    </div>
+</form>
+
+<!-- TABLA PRINCIPAL DE 12 COLUMNAS + ACCIONES (Págs. 13 y 14) -->
 <div class="card shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -51,16 +81,16 @@
                         <th>Fecha</th>
                         <th>Cliente / Paciente</th>
                         <th>Plan</th>
-                        <th>Cuotas</th>
-                        <th>Total</th>
-                        <th>Costo</th>
-                        <th>Pagado</th>
-                        <th>Saldo</th>
-                        <th>Margen</th>
-                        <th>Estado</th>
+                        <th class="text-center">Cuotas</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Costo</th>
+                        <th class="text-end">Pagado</th>
+                        <th class="text-end">Saldo</th>
+                        <th class="text-end">Margen</th>
+                        <th class="text-center">Estado</th>
                         <th>Forma de pago</th>
                         <th>Cuenta</th>
-                        <th>Acciones</th>
+                        <th class="text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -68,41 +98,57 @@
                     <tr>
                         <td>{{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '-' }}</td>
                         <td class="fw-bold">{{ v.cliente.nombre if v.cliente else 'Particular' }}</td>
-                        <td><span class="badge bg-info text-dark">{{ v.paquete.nombre if v.paquete else 'Venta General' }}</span></td>
-                        <td>{{ v.cuotas_progreso | default('1/1') }}</td>
-                        <td class="fw-bold">₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</td>
-                        <td>₲ {{ "{:,.0f}".format(v.costo_servicios or 0).replace(',', '.') }}</td>
-                        <td class="text-success fw-bold">₲ {{ "{:,.0f}".format(v.pagado or 0).replace(',', '.') }}</td>
-                        <td class="text-danger fw-bold">₲ {{ "{:,.0f}".format(v.saldo or 0).replace(',', '.') }}</td>
-                        <td class="text-primary fw-bold">₲ {{ "{:,.0f}".format(v.ganancia_plan or 0).replace(',', '.') }}</td>
                         <td>
-                            {% if v.estado == 'Pagada' %}<span class="badge bg-success">Pagada</span>
-                            {% elif v.estado == 'Parcial' %}<span class="badge bg-info text-dark">Parcial</span>
-                            {% elif v.estado == 'Cancelada' %}<span class="badge bg-secondary">Cancelada</span>
-                            {% else %}<span class="badge bg-warning text-dark">Pendiente</span>{% endif %}
+                            <span class="badge bg-info text-dark">
+                                {{ v.plan_nombre_historico or (v.paquete.nombre if v.paquete else 'Venta General') }}
+                            </span>
                         </td>
-                        <td>{{ v.forma_pago | default('Cuotas (CxC)') }}</td>
-                        <td>{{ v.cuenta_nombre | default('-') }}</td>
-                        <td>
+                        <td class="text-center fw-bold">{{ v.progreso_cuotas }}</td>
+                        <td class="text-end fw-bold">₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</td>
+                        <td class="text-end">₲ {{ "{:,.0f}".format(v.costo_servicios or 0).replace(',', '.') }}</td>
+                        <td class="text-end text-success fw-bold">₲ {{ "{:,.0f}".format(v.pagado or 0).replace(',', '.') }}</td>
+                        <td class="text-end {% if (v.saldo or 0) > 0 %}text-danger{% else %}text-muted{% endif %} fw-bold">
+                            ₲ {{ "{:,.0f}".format(v.saldo or 0).replace(',', '.') }}
+                        </td>
+                        <td class="text-end text-primary fw-bold">₲ {{ "{:,.0f}".format(v.ganancia_plan or 0).replace(',', '.') }}</td>
+                        <td class="text-center">
+                            {% if v.estado in ('Pagado', 'Pagada') %}
+                                <span class="badge bg-success">Pagado</span>
+                            {% elif v.estado == 'Parcial' %}
+                                <span class="badge bg-info text-dark">Parcial</span>
+                            {% elif v.estado in ('Cancelada', 'Cancelado') %}
+                                <span class="badge bg-secondary">Cancelada</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Pendiente</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ v.forma_pago or 'Cuotas (CxC)' }}</td>
+                        <td>{{ v.cuenta_nombre or '-' }}</td>
+                        <td class="text-center">
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
                                     Acciones
                                 </button>
-                                <ul class="dropdown-menu">
-                                    <li><button class="dropdown-item text-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalDetallesVenta{{ v.id }}"><i class="fa-solid fa-eye me-1"></i> Ver detalles</button></li>
-                                    
-                                    {% if v.estado != 'Pagada' and v.estado != 'Cancelada' %}
-                                    <li><a class="dropdown-item text-success" href="{{ url_for('main.cxc_vista') }}"><i class="fa-solid fa-cash-register me-1"></i> Cobrar cuota</a></li>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <button class="dropdown-item text-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalDetallesVenta{{ v.id }}">
+                                            <i class="fa-solid fa-eye me-1"></i> Ver detalles
+                                        </button>
+                                    </li>
+                                    {% if v.estado not in ('Pagado', 'Pagada', 'Cancelada') %}
+                                    <li>
+                                        <a class="dropdown-item text-success" href="{{ url_for('main.cxc_vista', q=v.cliente.nombre if v.cliente else '') }}">
+                                            <i class="fa-solid fa-cash-register me-1"></i> Cobrar cuota en CxC
+                                        </a>
+                                    </li>
                                     {% endif %}
-                                    
                                     {% if v.estado != 'Cancelada' %}
                                     <li>
-                                        <form action="{{ url_for('main.cancelar_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Desea cancelar esta venta y anular sus cuotas pendientes?');">
+                                        <form action="{{ url_for('main.cancelar_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Desea cancelar esta venta y anular sus cuotas pendientes en CxC?');">
                                             <button type="submit" class="dropdown-item text-warning"><i class="fa-solid fa-ban me-1"></i> Cancelar venta</button>
                                         </form>
                                     </li>
                                     {% endif %}
-
                                     <li>
                                         <form action="{{ url_for('main.excluir_venta', id=v.id) }}" method="POST" onsubmit="return confirm('¿Está seguro de que desea excluir esta venta? Esta acción no se puede deshacer.');">
                                             <button type="submit" class="dropdown-item text-danger"><i class="fa-solid fa-trash me-1"></i> Excluir</button>
@@ -113,7 +159,7 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="13" class="text-center py-4 text-muted">No hay ventas registradas.</td></tr>
+                    <tr><td colspan="13" class="text-center py-4 text-muted">Ninguna venta coincide con los filtros.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -121,7 +167,7 @@
     </div>
 </div>
 
-<!-- MODALES DE DETALLES -->
+<!-- MODALES DE DETALLES DE VENTA -->
 {% for v in ventas %}
 <div class="modal fade" id="modalDetallesVenta{{ v.id }}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -134,62 +180,63 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <p class="mb-1"><strong>Paciente:</strong> {{ v.cliente.nombre if v.cliente else 'Particular' }}</p>
-                        <p class="mb-1"><strong>Plan / Paquete:</strong> {{ v.paquete.nombre if v.paquete else 'Ninguno (Servicios sueltos)' }}</p>
-                        <p class="mb-1"><strong>Fecha:</strong> {{ v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else '-' }}</p>
+                        <p class="mb-1"><strong>Plan / Paquete:</strong> {{ v.plan_nombre_historico or (v.paquete.nombre if v.paquete else 'Servicios avulsos') }}</p>
+                        <p class="mb-1"><strong>Fecha:</strong> {{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '-' }}</p>
                     </div>
                     <div class="col-md-6 text-md-end">
                         <p class="mb-1"><strong>Estado:</strong> {{ v.estado }}</p>
                         <p class="mb-1"><strong>Total Facturado:</strong> <span class="text-success fw-bold">₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</span></p>
+                        <p class="mb-1"><strong>Pagado:</strong> ₲ {{ "{:,.0f}".format(v.pagado or 0).replace(',', '.') }} | <strong>Saldo:</strong> <span class="text-danger fw-bold">₲ {{ "{:,.0f}".format(v.saldo or 0).replace(',', '.') }}</span></p>
                     </div>
                 </div>
 
                 <hr>
 
-                <h6 class="fw-bold text-secondary mb-2">Desglose Financiero y Márgenes</h6>
+                <h6 class="fw-bold text-secondary mb-2">Resultado Financiero Guardado en la Venta</h6>
                 <div class="bg-light p-3 rounded mb-3">
-                    <div class="d-flex justify-content-between mb-1"><span>Facturación Bruta:</span> <strong>₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</strong></div>
-                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) IVA (÷ 11):</span> <strong>₲ {{ "{:,.0f}".format(v.iva or 0).replace(',', '.') }}</strong></div>
-                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Tarifa de tarjeta:</span> <strong>₲ {{ "{:,.0f}".format(v.tarifa_pasarela or 0).replace(',', '.') }}</strong></div>
-                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Costo de servicios:</span> <strong>₲ {{ "{:,.0f}".format(v.costo_servicios or 0).replace(',', '.') }}</strong></div>
+                    <div class="d-flex justify-content-between mb-1"><span>Facturación:</span> <strong>₲ {{ "{:,.0f}".format(v.total or 0).replace(',', '.') }}</strong></div>
+                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) IVA (precio ÷ 11):</span> <strong>₲ {{ "{:,.0f}".format(v.iva or 0).replace(',', '.') }}</strong></div>
+                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Tarifa de tarjeta (3,3%):</span> <strong>₲ {{ "{:,.0f}".format(v.tarifa_pasarela or 0).replace(',', '.') }}</strong></div>
+                    <div class="d-flex justify-content-between mb-1 text-danger"><span>(-) Costo de los servicios:</span> <strong>₲ {{ "{:,.0f}".format(v.costo_servicios or 0).replace(',', '.') }}</strong></div>
                     <hr class="my-2">
                     <div class="d-flex justify-content-between fw-bold text-success fs-5">
-                        <span>Ganancia neta del plan:</span>
+                        <span>Ganancia por plan:</span>
                         <span>₲ {{ "{:,.0f}".format(v.ganancia_plan or 0).replace(',', '.') }}</span>
                     </div>
                 </div>
 
-                <h6 class="fw-bold text-secondary mb-2">Cronograma de Cuotas Generadas</h6>
-                <div class="card border shadow-sm bg-white mb-0">
-                    <div class="card-body p-2">
-                        <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-                            <table class="table table-sm table-borderless mb-0 align-middle small">
-                                <thead class="text-muted border-bottom sticky-top bg-white">
-                                    <tr>
-                                        <th class="py-1 text-center" style="width: 15%;">N° Cuota</th>
-                                        <th class="py-1" style="width: 45%;">Vencimiento</th>
-                                        <th class="py-1 text-end" style="width: 25%;">Valor</th>
-                                        <th class="py-1 text-center" style="width: 15%;">Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for cuota in v.cuotas %}
-                                    <tr class="border-bottom border-light">
-                                        <td class="text-center fw-bold text-dark">{{ cuota.numero_cuota }}</td>
-                                        <td class="text-muted">{{ cuota.vencimiento_label }}</td>
-                                        <td class="text-end fw-bold text-success">₲ {{ "{:,.0f}".format(cuota.valor or 0).replace(',', '.') }}</td>
-                                        <td class="text-center">
-                                            <span class="badge {% if cuota.estado == 'Pagado' %}bg-success{% elif cuota.estado == 'Cancelada' %}bg-secondary{% else %}bg-warning text-dark{% endif %} px-2 py-1">
-                                                {{ cuota.estado }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {% else %}
-                                    <tr><td colspan="4" class="text-center text-muted py-3">No hay cuotas asociadas.</td></tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <h6 class="fw-bold text-secondary mb-2">Títulos Generados en Cuentas por Cobrar (CxC)</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0 align-middle small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Cuota</th>
+                                <th>Vencimiento</th>
+                                <th class="text-end">Total</th>
+                                <th class="text-end">Pagado</th>
+                                <th class="text-end">Saldo</th>
+                                <th class="text-center">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in v.cuotas_cxc %}
+                            <tr>
+                                <td class="fw-bold">{{ c.numero_cuota_str or c.concepto }}</td>
+                                <td>{{ c.fecha_vencimiento.strftime('%d/%m/%Y') if c.fecha_vencimiento else '-' }}</td>
+                                <td class="text-end">₲ {{ "{:,.0f}".format(c.monto or 0).replace(',', '.') }}</td>
+                                <td class="text-end text-success fw-bold">₲ {{ "{:,.0f}".format(c.pagado or 0).replace(',', '.') }}</td>
+                                <td class="text-end text-danger fw-bold">₲ {{ "{:,.0f}".format(c.saldo or 0).replace(',', '.') }}</td>
+                                <td class="text-center">
+                                    <span class="badge {% if c.estado == 'Pagado' %}bg-success{% elif c.estado == 'Parcial' %}bg-info text-dark{% elif c.estado == 'Cancelado' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">
+                                        {{ c.estado }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center text-muted py-2">Sin cuotas registradas en CxC.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
             <div class="modal-footer">
@@ -200,11 +247,11 @@
 </div>
 {% endfor %}
 
-<!-- Modal Nueva Venta (Sin Cuenta de Ingreso ni Costo Fijo) -->
+<!-- Modal Registrar Venta (Págs. 16 y 17: Sin Cuenta de Ingreso y Sin Costo Fijo por Plan) -->
 <div class="modal fade" id="modalVenta" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
-            <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST" onsubmit="limpiarFormatoVentas()">
+            <form action="{{ url_for('main.agregar_venta_completa') }}" method="POST">
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title fw-bold"><i class="fas fa-cash-register me-2"></i> Registrar Venta (Plan / Paquete o Servicios Avulsos)</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -225,10 +272,11 @@
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Plan / Paquete Médico (Opcional)</label>
                                 <select class="form-select" name="paquete_id" id="paqueteSelect" onchange="actualizarDatosPaquete()">
-                                    <option value="">-- Ninguno (Solo servicios avulsos / sueltos) --</option>
+                                    <option value="" data-precio="0" data-costo="0">-- Ninguno (Solo servicios avulsos / sueltos) --</option>
                                     {% for p in paquetes %}
-                                    <option value="{{ p.id }}" data-precio="{{ p.precio }}" data-duracion="{{ p.duracion_meses }}">
-                                        {{ p.nombre }} ({{ p.duracion_meses }} meses) - ₲ {{ "{:,.0f}".format(p.precio).replace(',', '.') }}
+                                    {% set costo_paq = p.items | sum(attribute='costo_total_item') %}
+                                    <option value="{{ p.id }}" data-precio="{{ p.precio or 0 }}" data-costo="{{ costo_paq or 0 }}" data-duracion="{{ p.duracion_meses or 0 }}">
+                                        {{ p.nombre }} ({{ p.duracion_meses or 0 }} meses) - ₲ {{ "{:,.0f}".format(p.precio or 0).replace(',', '.') }}
                                     </option>
                                     {% endfor %}
                                 </select>
@@ -247,19 +295,22 @@
                                 <div class="row service-row mb-2 align-items-end bg-light p-2 rounded">
                                     <div class="col-md-7">
                                         <label class="form-label small text-muted mb-1">Servicio</label>
-                                        <select name="servicio_avulso_id[]" class="form-select form-select-sm">
-                                            <option value="">Seleccione servicio avulso...</option>
+                                        <select name="servicio_avulso_id[]" class="form-select form-select-sm select-avulso" onchange="actualizarDatosPaquete()">
+                                            <option value="" data-precio="0" data-costo="0">Seleccione servicio avulso...</option>
                                             {% for s in servicios %}
-                                            <option value="{{ s.id }}">{{ s.nombre }} (₲ {{ "{:,.0f}".format(s.precio).replace(',', '.') }})</option>
+                                            {% set costo_srv_unit = (s.costo_unitario or 0) * (1 + ((s.reparto_adicional or 0) / 100.0)) %}
+                                            <option value="{{ s.id }}" data-precio="{{ s.precio or 0 }}" data-costo="{{ costo_srv_unit }}">
+                                                {{ s.nombre }} (₲ {{ "{:,.0f}".format(s.precio or 0).replace(',', '.') }})
+                                            </option>
                                             {% endfor %}
                                         </select>
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label small text-muted mb-1">Cantidad</label>
-                                        <input type="number" name="cantidad_avulso[]" class="form-control form-control-sm" value="1" min="1">
+                                        <input type="number" name="cantidad_avulso[]" class="form-control form-control-sm input-cant-avulso" value="1" min="1" oninput="actualizarDatosPaquete()">
                                     </div>
                                     <div class="col-md-1 text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-danger mt-3" onclick="this.closest('.row').remove()"><i class="fa-solid fa-trash"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger mt-3" onclick="this.closest('.row').remove(); actualizarDatosPaquete();"><i class="fa-solid fa-trash"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -268,15 +319,15 @@
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">Forma de Pago</label>
                                     <select class="form-select" name="forma_pago" id="formaPagoSelect" onchange="actualizarDatosPaquete()" required>
-                                        <option value="Efectivo/Transferencia">Efectivo / Transferencia</option>
-                                        <option value="Crédito (local/extranjera)">Crédito (local / extranjera)</option>
-                                        <option value="Débito">Débito</option>
-                                        <option value="PIX">PIX</option>
+                                        <option value="Efectivo">Efectivo</option>
+                                        <option value="Transferencia">Transferencia</option>
+                                        <option value="Tarjeta">Tarjeta / Crédito (local / extranjera)</option>
+                                        <option value="Cuotas (CxC)">Cuotas (CxC)</option>
                                     </select>
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Nº de Cuotas</label>
-                                    <input type="number" class="form-control" name="num_cuotas" id="inputCuotas" value="1" min="1" max="12" required>
+                                    <input type="number" class="form-control" name="num_cuotas" id="inputCuotas" value="1" min="1" max="24" required>
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">Entrada (Gs.)</label>
@@ -285,13 +336,14 @@
                                 </div>
                             </div>
 
-                            <div class="card bg-light border p-3 mb-3">
-                                <h6 class="fw-bold text-secondary mb-2"><i class="fas fa-calendar-alt me-1"></i> Cuotas generadas en Cuentas por Cobrar (CxC)</h6>
+                            <!-- Pág. 16: Texto informativo sin selector de Cuenta de Ingreso -->
+                            <div class="card bg-light border p-3 mb-2">
+                                <h6 class="fw-bold text-secondary mb-1"><i class="fas fa-calendar-alt me-1"></i> Cuotas generadas en Cuentas por Cobrar (CxC)</h6>
                                 <p class="text-muted small mb-0">La cuenta y la moneda se eligen al cobrar cada cuota en Cuentas por Cobrar.</p>
                             </div>
                         </div>
 
-                        <!-- Columna Derecha: Tarjeta de Resultados sin Costo Fijo -->
+                        <!-- Columna Derecha: Resultado de la Venta sin Costo Fijo por Plan (Pág. 17) -->
                         <div class="col-md-5">
                             <div class="card shadow-sm border bg-light h-100">
                                 <div class="card-header bg-white fw-bold text-dark">
@@ -316,7 +368,7 @@
                                     </div>
                                     <hr>
                                     <div class="p-3 rounded bg-success text-white text-center mt-3">
-                                        <small class="d-block uppercase tracking-wider opacity-75">Ganancia por plan</small>
+                                        <small class="d-block opacity-75">Ganancia por plan</small>
                                         <h3 class="fw-bold mb-0" id="lblGananciaPlan">₲ 0</h3>
                                         <small id="lblPorcentajeMargen" class="opacity-75">0,0% del precio</small>
                                     </div>
@@ -345,58 +397,62 @@ function agregarServicioAvulso() {
     nuevaFila.querySelector('select').selectedIndex = 0;
     nuevaFila.querySelector('input').value = '1';
     contenedor.appendChild(nuevaFila);
-}
-
-document.addEventListener('input', function (e) {
-    if (e.target.classList.contains('moneda-input')) {
-        let valorLimpio = e.target.value.replace(/\D/g, '');
-        if (valorLimpio !== '') {
-            let numero = parseInt(valorLimpio, 10);
-            e.target.value = numero.toLocaleString('es-PY');
-            if (e.target.id === 'inputEntradaVisual') {
-                document.getElementById('inputEntradaReal').value = numero;
-            }
-        } else {
-            e.target.value = '';
-            if (e.target.id === 'inputEntradaVisual') {
-                document.getElementById('inputEntradaReal').value = '0';
-            }
-        }
-    }
-});
-
-function limpiarFormatoVentas() {
-    let visual = document.getElementById('inputEntradaVisual');
-    if (visual) {
-        document.getElementById('inputEntradaReal').value = visual.value.replace(/\./g, '').replace(/,/g, '') || '0';
-    }
+    actualizarDatosPaquete();
 }
 
 function actualizarDatosPaquete() {
     let select = document.getElementById('paqueteSelect');
-    if (!select || select.selectedIndex === -1) return;
-    let opt = select.options[select.selectedIndex];
-    let precio = parseFloat(opt.getAttribute('data-precio')) || 0;
-    
-    let formaPagoSelect = document.getElementById('formaPagoSelect');
-    let formaPago = formaPagoSelect ? formaPagoSelect.value : '';
+    let precioTotal = 0;
+    let costoTotal = 0;
 
-    let iva = precio / 11;
-    let tarifa = 0;
-    if (formaPago.toLowerCase().includes('crédito') || formaPago.toLowerCase().includes('tarjeta')) {
-        tarifa = precio * 0.033;
+    if (select && select.selectedIndex !== -1) {
+        let opt = select.options[select.selectedIndex];
+        precioTotal += parseFloat(opt.getAttribute('data-precio')) || 0;
+        costoTotal += parseFloat(opt.getAttribute('data-costo')) || 0;
     }
 
-    let costoServicios = precio * 0.25;
-    let gananciaPlan = precio - iva - tarifa - costoServicios;
-    let porcMargen = precio > 0 ? (gananciaPlan / precio) * 100 : 0;
+    document.querySelectorAll('#contenedor-servicios-avulsos .service-row').forEach(row => {
+        let selSrv = row.querySelector('.select-avulso');
+        let cantInput = row.querySelector('.input-cant-avulso');
+        if (selSrv && selSrv.selectedIndex > 0) {
+            let optSrv = selSrv.options[selSrv.selectedIndex];
+            let cant = parseInt(cantInput.value, 10) || 1;
+            precioTotal += (parseFloat(optSrv.getAttribute('data-precio')) || 0) * cant;
+            costoTotal += (parseFloat(optSrv.getAttribute('data-costo')) || 0) * cant;
+        }
+    });
 
-    document.getElementById('lblFacturacion').innerText = '₲ ' + precio.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblIva').innerText = '₲ ' + iva.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblTarifa').innerText = '₲ ' + tarifa.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblCostoServicios').innerText = '₲ ' + costoServicios.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblGananciaPlan').innerText = '₲ ' + gananciaPlan.toLocaleString('es-PY', {maximumFractionDigits: 0});
-    document.getElementById('lblPorcentajeMargen').innerText = porcMargen.toFixed(1) + '% del precio';
+    let formaPagoSelect = document.getElementById('formaPagoSelect');
+    let formaPago = formaPagoSelect ? formaPagoSelect.value.toLowerCase() : '';
+
+    let iva = Math.round(precioTotal / 11);
+    let tarifa = (formaPago.includes('crédito') || formaPago.includes('tarjeta')) ? Math.round(precioTotal * 0.033) : 0;
+    let gananciaPlan = Math.round(precioTotal - iva - tarifa - costoTotal);
+    let porcMargen = precioTotal > 0 ? (gananciaPlan / precioTotal) * 100 : 0;
+
+    document.getElementById('lblFacturacion').innerText = '₲ ' + Math.round(precioTotal).toLocaleString('es-PY');
+    document.getElementById('lblIva').innerText = '₲ ' + iva.toLocaleString('es-PY');
+    document.getElementById('lblTarifa').innerText = '₲ ' + tarifa.toLocaleString('es-PY');
+    document.getElementById('lblCostoServicios').innerText = '₲ ' + Math.round(costoTotal).toLocaleString('es-PY');
+    document.getElementById('lblGananciaPlan').innerText = '₲ ' + gananciaPlan.toLocaleString('es-PY');
+    document.getElementById('lblPorcentajeMargen').innerText = porcMargen.toFixed(1).replace('.', ',') + '% del precio';
 }
+
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById('ventasFilterForm');
+    if (form) {
+        form.querySelectorAll('select, input[type="date"]').forEach(function(el) {
+            el.addEventListener('change', function() { form.submit(); });
+        });
+        let searchInput = form.querySelector('input[name="q"]');
+        if (searchInput) {
+            let timeout = null;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(function() { form.submit(); }, 600);
+            });
+        }
+    }
+});
 </script>
 {% endblock %}
