@@ -274,6 +274,37 @@ def actualizar_db_urgente():
     db.create_all()
     return "¡Esquema de base de datos sincronizado correctamente!"
 
+@bp.route('/crear-usuario', methods=['POST'])
+@login_required
+def crear_usuario():
+    if current_user.username.lower() not in ('admin', 'administracion'):
+        flash('Acceso no autorizado para crear usuarios.', 'danger')
+        return redirect(url_for('main.dashboard'))
+
+    nuevo_username = (request.form.get('username') or '').strip().lower()
+    nueva_password = (request.form.get('password') or '').strip()
+
+    if not nuevo_username or not nueva_password:
+        flash('Debe ingresar un usuario y una contraseña.', 'danger')
+        return redirect(request.referrer or url_for('main.cadastros'))
+
+    if len(nueva_password) < 6:
+        flash('La contraseña debe tener al menos 6 caracteres.', 'warning')
+        return redirect(request.referrer or url_for('main.cadastros'))
+
+    existente = User.query.filter(db.func.lower(User.username) == nuevo_username).first()
+    if existente:
+        flash(f'El usuario "{nuevo_username}" ya existe.', 'warning')
+        return redirect(request.referrer or url_for('main.cadastros'))
+
+    usuario = User(username=nuevo_username)
+    usuario.set_password(nueva_password)
+    db.session.add(usuario)
+    db.session.commit()
+
+    flash(f'Usuario "{nuevo_username}" creado correctamente.', 'success')
+    return redirect(request.referrer or url_for('main.cadastros'))
+
 @bp.route('/crear-usuarios-aeterna')
 @login_required
 def crear_usuarios_aeterna():
@@ -362,7 +393,7 @@ def pyg():
         valor_total_medico = 0.0
         esp_lower = (m.especialidad or '').strip().lower()
         nombre_med_lower = (m.nombre or '').strip().lower()
-        porc_medico = (m.porcentaje_medico or 70.0) / 100.0
+        porc_medico = (m.porcentaje_medico if m.porcentaje_medico is not none else 70.0) / 100.0
 
         prestaciones_directas = PrestacionServicio.query.filter_by(medico_id=m.id).all()
         for p in prestaciones_directas:
@@ -2458,8 +2489,10 @@ def agregar_medico():
         return redirect(url_for('main.cadastros'))
     nombre = request.form.get('nombre')
     especialidad = request.form.get('especialidad')
-    porcentaje_medico = limpiar_monto(request.form.get('porcentaje_medico') or 70)
-    porcentaje_clinica = limpiar_monto(request.form.get('porcentaje_clinica') or 30)
+    raw_med = request.form.get('porcentaje_medico')
+    raw_cli = request.form.get('porcentaje_clinica')
+    porcentaje_medico = limpiar_monto(raw_med) if (raw_med is not None and str(raw_med).strip() != '') else 70.0
+    porcentaje_clinica = limpiar_monto(raw_cli) if (raw_cli is not None and str(raw_cli).strip() != '') else max(0.0, 100.0 - porcentaje_medico)
     db.session.add(Medico(nombre=nombre, especialidad=especialidad, porcentaje_medico=porcentaje_medico, porcentaje_clinica=porcentaje_clinica, activo=True))
     db.session.commit()
     flash('Profesional médico agregado con éxito.', 'success')
@@ -2472,10 +2505,19 @@ def editar_medico(id):
         flash('Acceso no autorizado.', 'danger')
         return redirect(url_for('main.cadastros'))
     m = Medico.query.get_or_404(id)
-    m.nombre = request.form.get('nombre')
-    m.especialidad = request.form.get('especialidad')
-    m.porcentaje_medico = limpiar_monto(request.form.get('porcentaje_medico') or 70)
-    m.porcentaje_clinica = limpiar_monto(request.form.get('porcentaje_clinica') or 30)
+    m.nombre = (request.form.get('nombre') or m.nombre or '').strip()
+    m.especialidad = (request.form.get('especialidad') or m.especialidad or '').strip()
+
+    raw_med = request.form.get('porcentaje_medico')
+    raw_cli = request.form.get('porcentaje_clinica')
+
+    if raw_med is not None and str(raw_med).strip() != '':
+        m.porcentaje_medico = limpiar_monto(raw_med)
+    if raw_cli is not None and str(raw_cli).strip() != '':
+        m.porcentaje_clinica = limpiar_monto(raw_cli)
+    elif raw_med is not None and str(raw_med).strip() != '':
+        m.porcentaje_clinica = max(0.0, 100.0 - m.porcentaje_medico)
+
     db.session.commit()
     flash('Médico actualizado correctamente.', 'success')
     return redirect(url_for('main.cadastros'))
@@ -2586,7 +2628,7 @@ def honorarios():
                 for m in medicos:
                     esp = (m.especialidad or '').strip().lower()
                     if (esp and (esp in nombre_srv or nombre_srv in esp)) or ('nutricion' in esp and 'nutricionista' in nombre_srv):
-                        porc_med = (m.porcentaje_medico or 70.0) / 100.0
+                        porc_med = (m.porcentaje_medico if m.porcentaje_medico is not none else 70.0) / 100.0
                         val_total = item.costo_total_item if (item.costo_total_item or 0) > 0 else ((item.servicio.precio if item.servicio else 0.0) * (item.cantidad or 1))
                         prestaciones_virtuales.append({
                             'fecha': v.fecha,
@@ -2618,7 +2660,7 @@ def agregar_prestacion():
                 cliente_id=cliente_id,
                 fecha=datetime.utcnow()
             ))
-            porc_med = medico.porcentaje_medico if medico.porcentaje_medico else 70.0
+            porc_med = medico.porcentaje_medico if medico.porcentaje_medico is not None else 70.0
             honorario_medico = servicio.precio * (porc_med / 100.0)
             
             db.session.add(CuentaPorPagar(
