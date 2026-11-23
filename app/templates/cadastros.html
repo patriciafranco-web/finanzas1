@@ -240,11 +240,13 @@
                     </thead>
                     <tbody>
                         {% for m in medicos %}
+                        {% set porc_med_val = m.porcentaje_medico if m.porcentaje_medico is not none else 70 %}
+                        {% set porc_cli_val = m.porcentaje_clinica if m.porcentaje_clinica is not none else (100 - porc_med_val) %}
                         <tr>
                             <td class="fw-bold">{{ m.nombre }}</td>
                             <td>{{ m.especialidad or '-' }}</td>
-                            <td><span class="badge bg-success">{{ m.porcentaje_medico or 70 }}%</span></td>
-                            <td><span class="badge bg-primary">{{ m.porcentaje_clinica if m.porcentaje_clinica is not none else 30 }}%</span></td>
+                            <td><span class="badge bg-success">{{ porc_med_val }}%</span></td>
+                            <td><span class="badge bg-primary">{{ porc_cli_val }}%</span></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditarMedico{{ m.id }}"><i class="fa-solid fa-pen"></i> Editar</button>
                                 <form action="{{ url_for('main.eliminar_medico', id=m.id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas excluir o inactivar este médico?');" class="d-inline">
@@ -274,11 +276,11 @@
                                             <div class="row">
                                                 <div class="col-md-6 mb-3">
                                                     <label class="form-label">% Comisión Médico</label>
-                                                    <input type="number" step="any" class="form-control" name="porcentaje_medico" value="{{ m.porcentaje_medico or 70 }}" required>
+                                                    <input type="number" step="any" min="0" max="100" class="form-control" name="porcentaje_medico" value="{{ porc_med_val }}" required>
                                                 </div>
                                                 <div class="col-md-6 mb-3">
                                                     <label class="form-label">% Parte Clínica</label>
-                                                    <input type="number" step="any" class="form-control" name="porcentaje_clinica" value="{{ m.porcentaje_clinica if m.porcentaje_clinica is not none else 30 }}" required>
+                                                    <input type="number" step="any" min="0" max="100" class="form-control" name="porcentaje_clinica" value="{{ porc_cli_val }}" required>
                                                 </div>
                                             </div>
                                         </div>
@@ -634,6 +636,29 @@
     {% endif %}
 </div>
 
+{% if current_user.username.lower() in ['admin', 'administracion'] %}
+<div class="card shadow-sm mt-4">
+    <div class="card-header bg-light">
+        <strong>Crear Nuevo Usuario (Dueños / Administración)</strong>
+    </div>
+    <div class="card-body">
+        <form action="{{ url_for('main.crear_usuario') }}" method="POST" class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label">Nombre de usuario</label>
+                <input type="text" name="username" class="form-control" placeholder="ej. socio.carlos" required>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Contraseña</label>
+                <input type="password" name="password" class="form-control" placeholder="Mínimo 6 caracteres" required>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Crear usuario</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <!-- ================= MODALES DE CREACIÓN ================= -->
 {% if current_user.username.lower() != 'recepcion' %}
 <!-- Modal Cuenta -->
@@ -688,11 +713,11 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">% Comisión Médico</label>
-                            <input type="number" step="any" class="form-control" name="porcentaje_medico" value="70" required>
+                            <input type="number" step="any" min="0" max="100" class="form-control" name="porcentaje_medico" value="70" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">% Parte Clínica</label>
-                            <input type="number" step="any" class="form-control" name="porcentaje_clinica" value="30" required>
+                            <input type="number" step="any" min="0" max="100" class="form-control" name="porcentaje_clinica" value="30" required>
                         </div>
                     </div>
                 </div>
