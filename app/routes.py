@@ -286,16 +286,16 @@ def crear_usuario():
 
     if not nuevo_username or not nueva_password:
         flash('Debe ingresar un usuario y una contraseña.', 'danger')
-        return redirect(request.referrer or url_for('main.cadastros'))
+        return redirect(url_for('main.cadastros'))
 
     if len(nueva_password) < 6:
         flash('La contraseña debe tener al menos 6 caracteres.', 'warning')
-        return redirect(request.referrer or url_for('main.cadastros'))
+        return redirect(url_for('main.cadastros'))
 
     existente = User.query.filter(db.func.lower(User.username) == nuevo_username).first()
     if existente:
         flash(f'El usuario "{nuevo_username}" ya existe.', 'warning')
-        return redirect(request.referrer or url_for('main.cadastros'))
+        return redirect(url_for('main.cadastros'))
 
     usuario = User(username=nuevo_username)
     usuario.set_password(nueva_password)
@@ -303,7 +303,7 @@ def crear_usuario():
     db.session.commit()
 
     flash(f'Usuario "{nuevo_username}" creado correctamente.', 'success')
-    return redirect(request.referrer or url_for('main.cadastros'))
+    return redirect(url_for('main.cadastros'))
 
 @bp.route('/crear-usuarios-aeterna')
 @login_required
@@ -393,7 +393,7 @@ def pyg():
         valor_total_medico = 0.0
         esp_lower = (m.especialidad or '').strip().lower()
         nombre_med_lower = (m.nombre or '').strip().lower()
-        porc_medico = (m.porcentaje_medico if m.porcentaje_medico is not none else 70.0) / 100.0
+        porc_medico = (m.porcentaje_medico if m.porcentaje_medico is not None else 70.0) / 100.0
 
         prestaciones_directas = PrestacionServicio.query.filter_by(medico_id=m.id).all()
         for p in prestaciones_directas:
@@ -2628,7 +2628,7 @@ def honorarios():
                 for m in medicos:
                     esp = (m.especialidad or '').strip().lower()
                     if (esp and (esp in nombre_srv or nombre_srv in esp)) or ('nutricion' in esp and 'nutricionista' in nombre_srv):
-                        porc_med = (m.porcentaje_medico if m.porcentaje_medico is not none else 70.0) / 100.0
+                        porc_med = (m.porcentaje_medico if m.porcentaje_medico is not None else 70.0) / 100.0
                         val_total = item.costo_total_item if (item.costo_total_item or 0) > 0 else ((item.servicio.precio if item.servicio else 0.0) * (item.cantidad or 1))
                         prestaciones_virtuales.append({
                             'fecha': v.fecha,
@@ -2764,3 +2764,4 @@ def reparar_datos_historicos():
     db.session.commit()
     flash(f'Datos reparados: {eliminadas} transacción(es) de prueba eliminada(s) y {cuotas_corregidas} fecha(s) de vencimiento escalonada(s) corregida(s).', 'success')
     return redirect(url_for('main.cxc_vista'))
+
